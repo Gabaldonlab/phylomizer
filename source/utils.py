@@ -3,40 +3,100 @@ from operator import itemgetter
 from getpass import getpass
 from string import strip
 
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+def readConfig(input_file):
+  ''' Read pipeline configuration file checking whether all files, binaries and
+      directories exist and can be accessed/executed
+  '''
+
+  toCheck, parameters = {}, {}
+  for line in open(input_file, "rU"):
+    f = map(strip, line.split())
+
+    ## Discard empty lines or with comments
+    if f[0].startswith("#") or (len(f) == 1 and f[0] == ""):
+      continue
+
+    ## Comments at the end of the line are allowed
+    arg = []
+    for e in f[2:]:
+      if e.startswith("#"):
+        break
+      arg.append(e)
+    arg = "" if arg == [] else " ".join(arg)
+
+    dtype = f[1].lower()
+    if dtype in ["binary", "files", "directory"]:
+      toCheck.setdefault(dtype, []).append((f[0], arg))
+    else:
+      parameters[f[0]] = arg
+
+  ## Check whether binaries are accessible
+  for binary,path in toCheck["binary"]:
+    progr_path = lookForProgram(binary) if path == "" else lookForProgram(path)
+    if progr_path == None:
+      sys.exit(("ERROR: Impossible to find the binary file '%s'") % (binary))
+    parameters[binary] = progr_path
+
+  ## Check for any file included in the configuration file
+  for key,infile in toCheck["files"]:
+    if not lookForFile(infile):
+      sys.exit(("ERROR: Impossible to find the input file for '%s'") % (key))
+    parameters[key] = infile
+
+  ## Check all directories exist and are accessible
+  for key,direc in toCheck["directory"]:
+    if not lookForDirectory(direc):
+      sys.exit(("ERROR: Impossible to access to '%s' directory") % (key))
+    parameters[key] = direc
+
+  return parameters
+
 def lookForProgram(binary):
+  ''' Return if a given binary is on the file system
   '''
-  Return if a given binary program is found in the standard file system or not
-  '''
-  try: pipe = sp.Popen("which " + binary, shell = True, stdout = sp.PIPE)
-  except OSError, e: sys.exit("ERROR: Execution failed: " + str(e))
+  try:
+    pipe = sp.Popen(("which %s") % (binary), shell = True, stdout = sp.PIPE)
+  except OSError, e:
+    sys.exit(("ERROR: Impossible to find '%s'\nReport: %s") % (binary, str(e)))
 
-  program = pipe.stdout.readline().strip()
-  if program: return program
-  else: return None
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+  program_path = "".join(map(strip, pipe.stdout.readlines()))
 
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-def lookForFile(inFile):
-  '''
-  Return if a given file exists or not
-  '''
-  return os.path.isfile(inFile) and os.path.getsize(inFile) > 0
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+  if program_path == "" or not lookForFile(program_path):
+    return None
+  return program_path
 
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-def lookForDirectory(inFolder, create = True):
+def lookForFile(input_file):
+  ''' Return if a given file exists or not
   '''
-  Return True if a given folder exists or it has been generated. Otherwise,
-  return False
+  return (os.path.isfile(input_file) and os.path.getsize(input_file) > 0)
+
+def lookForDirectory(input_direct, create = True):
+  ''' Return whether a given folder exists or it has been created.
   '''
-  if not os.path.isdir(inFolder):
-    if create:
-      try: sp.call("mkdir -p " + inFolder, shell = True)
-      except OSError: sys.exit("ERROR: Impossible to create the directory")
-  elif not os.access(inFolder, os.W_OK): return False
+
+  ## If input directory exist, check whether is writable
+  if os.path.isdir(input_direct):
+    return os.access(input_direct, os.W_OK)
+
+  ## If it doesn't exist, check whether it should be created or not
+  if not create:
+    return False
+
+  try:
+    sp.call(("mkdir -p %s") % (input_direct), shell = True)
+  except OSError, e:
+    sys.exit(("ERROR: Impossible to create '%s'\nReport: %s") % (input_direct, \
+      str(e)))
   return True
+
+
+
+
+
 ### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+
 
 def unique(seq):
   '''
@@ -81,41 +141,6 @@ def split_len(seq, length = 80):
 ### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
 
 ### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-def readConfig(inFile, opts):
-  '''
-  '''
-  iFile = open(inFile, "rU")
-
-  for line in iFile.readlines():
-    line = line.strip()
-    if not line or line[0] == "#":
-      continue
-    fields = line.split()
-    opts[fields[0]] = [fields[1], ' ' . join(fields[2:]) if len(fields) > 2 \
-      else ""]
-
-  binaries = [key for key in opts if opts[key][0].lower() == "binary" and \
-              opts[key][1] == ""]
-
-  for program in binaries:
-    path = lookForProgram(program)
-    if path != None:
-      opts[program][1] = path
-    else:
-      sys.exit("ERROR: Impossible to find the program " + program)
-
-  for iFile in [opts[key][1] for key in opts if opts[key][0].lower() == \
-    "files" or opts[key][0].lower() == "binary"]:
-    if not lookForProgram(iFile):
-      sys.exit("ERROR: Impossible to find the file " + iFile)
-
-  for iDirect in [opts[key][1] for key in opts if opts[key][0].lower() == \
-    "directory"]:
-    if not lookForDirectory(iDirect):
-      sys.exit("ERROR: Impossible to access to the directory " + iDirect)
-
-  for key in opts:
-    opts[key] = opts[key][1]
 ### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
 
 ### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
