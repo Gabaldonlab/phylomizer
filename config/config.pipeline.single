@@ -1,0 +1,45 @@
+# Pipeline Configuration file.
+#
+# You can use the wildcard "#" to put some comments in this file.
+#
+# There are 4 different parameters type:
+#   program parameters:   <parameter_name> parameter <parameters>
+#   program pathways:     <program_name> binary <path>
+#   or
+#   program pathways:     <program_name> binary
+#   directory:            <directory_name> directory <path>
+#   file:                 <file_name> file <path>
+#
+# The program looks for each file and directory to be sure that they exist and
+# are accesibles. For the program, if there is not a path for the program, the
+# script will look for it in the system's binaries directory. Otherwise, the
+# script will evaluate that the program exists.
+#
+# There is not problem for using <tab> or <blank_spaces>
+#
+verbose           parameter	 1
+hits              parameter	 150
+e_value           parameter	 1e-3
+coverage          parameter	 0.5
+blast_params      parameter	 -FT -b 5000 -a 2 -m8 -s -z 100000000 -t0
+in_letter         parameter	 B
+muscle_params     parameter
+mafft_params      parameter	--auto
+trimal_params     parameter	-phylip -gt 0.1 -cons 33.33
+trimal_compare    parameter	-ct 0.1667
+dialigntx_params  parameter	/usr/share/dialign-tx/
+mcoffee_params    parameter	-n_core 1 -output fasta
+numb_models       parameter	2
+nj_parameters     parameter	-d aa -b 0  -f e -v e -a e -o l -c 4 --no_memory_check
+ml_parameters     parameter	-d aa -b -2 -f e -v e -a e -o tlr -c 4 --no_memory_check
+evol_models       parameter	JTT WAG VT Blosum62
+blastpgp          binary
+muscle            binary        muscle3.8
+mafft             binary
+dialign-tx        binary
+t_coffee          binary
+readal            binary
+trimal            binary
+phyml             binary
+both_direction    parameter False
+single_program    parameter muscle
