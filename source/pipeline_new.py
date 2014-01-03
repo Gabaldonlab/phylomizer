@@ -21,8 +21,8 @@ Versions:
   > Initial release
 """
 
-import sys, os, argparse
-import blaster, aligner, tree_reconstructor as tree, utils
+import sys, os, argparse, datetime
+import homology, aligner, tree_reconstructor as tree, utils
 
 def main():
 
@@ -33,7 +33,7 @@ def main():
     epilog = epilog)
 
   ## Capture initial parameters
-  parser.add_argument("-i", "--in", dest = "inFile", type = str, required = True,
+  parser.add_argument("-i","--in", dest = "inFile", type = str, required = True,
     help = "Input FASTA file containing the seed sequence which will be used to"
     + " perform the homology search")
 
@@ -44,13 +44,20 @@ def main():
     "Input Sequences DB file containing all sequences which will be scanned "
     + "looking for homologs")
 
-  parser.add_argument("-o", "--outdir", default = ".", type = str, help = \
-    "Define a directory where output files will be stored")
+  parser.add_argument("-l", "--log", default = "", type = str, help = "Define" \
+    + "a log file where all messages will be dumped. Otherwise it will be set "
+    + "automatically using the output directory and the input file name")
+
+  parser.add_argument("-o", "--outdir", default = os.getcwd(), type = str, \
+    help = "Define a directory where output files will be stored")
 
   parser.add_argument("-r", "--replace", default = False, action = "store_true",
     help = "Overwrite any previously generated file on the output directory")
 
-  parser.add_argument("-v", "--verbose", default = False, action = "store_true")
+  parser.add_argument("--compress", default = False, action = "store_true",
+    help = "Compress intermediate files on .gz format")
+
+  parser.add_argument("-v", "--verbose", default = True, action = "store_false")
   parser.add_argument("--version", action = "version", version ='%(prog)s v1.0')
 
   args = parser.parse_args()
@@ -77,67 +84,127 @@ def main():
     sys.exit(("\nERROR: Check your output directory '%s'") % (args.outdir))
   parameters.setdefault("outdirec", args.outdir)
 
+  parameters.setdefault("compress", args.compress)
   parameters.setdefault("replace", args.replace)
   parameters.setdefault("verbose", args.verbose)
 
-  print str(parameters)
+  ## Set the log file
+  if not args.log:
+    ## Determine automatically the log file name using output directory and
+    ## input file name
+    prefixFile = os.path.split(parameters["inFile"])[1].split(".")[0]
+    refFile = ("%s.log") % (os.path.join(parameters["outdirec"], prefixFile))
+  else:
+    refFile = args.log
+  ## If log information is requested, open the output stream
+  parameters["log"] = open(refFile, "w" if parameters["replace"] else "a+") \
+    if parameters["verbose"] else None
 
   ## Read Configuration file and update current structure with the different
   ## parameters
   parameters.update(utils.readConfig(args.config))
 
-  print "---"
-  print str(parameters)
+  ## Print configuration pipeline
+  if parameters["verbose"]:
+    print >> parameters["log"], ("### %s\n%s") % \
+      ("Pipeline General Configuration".center(90), "#" * 90)
+    for key,value in sorted(parameters.iteritems()):
+      print >> parameters["log"], ("### %30s\t%s") % (key.center(30), value)
+    print >> parameters["log"], ("%s") % ("#" * 90)
 
+  ## Register when each process starts
+  general_start = datetime.datetime.now()
+  if parameters["verbose"]:
+    date = general_start.strftime("%H:%M:%S %m/%d/%y")
+    print >> parameters["log"], ("### Pipeline starts\n### Homology search\n"
+      + "### %s") % (date)
 
+  ## Homology search
+  step_start = general_start
+  resulting_file = ""
+  #~ resulting_file = homology.blast(parameters)
+  step_end = datetime.datetime.now()
 
-  #~ # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-#~
-  #~ # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  #~ print "Pipeline Configuration\n---"
-  #~ for key in parameters:
-    #~ print key.center(20) + "\t" + str(parameters[key])
-  #~ print "---"
-  #~ # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-#~
-  #~ # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  #~ if float(parameters["coverage"]) > 1 or float(parameters["coverage"]) <= 0:
-    #~ sys.exit("ERROR: The coverage has to be defined between 0 and 1")
-#~
-  #~ if int(parameters["hits"]) < 1:
-    #~ sys.exit("ERROR: The Number of hits for the Blast Output has to be greater"\
-             #~ + "than 0")
-#~
-  #~ if int(parameters["numb_models"]) > len(parameters["evol_models"].split(" "))\
-    #~ or int(parameters["numb_models"]) < 1:
-    #~ sys.exit("ERROR: The number of models to be evaluated have to be defined "
-             #~ "between 1 and " + str(len(parameters["evol_models"].split(" "))))
-  #~ # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-#~
-  #~ # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  #~ parameters["inFile"] = blast(parameters)
-#~
-  #~ parameters["inFile"] = AlignerPipeline(parameters)
-#~
+  if parameters["verbose"]:
+    date = step_end.strftime("%H:%M:%S %m/%d/%y")
+    total = utils.format_time((step_end - step_start).seconds if step_start \
+      else 0)
+    whole = utils.format_time((step_end - general_start).seconds \
+      if general_start else 0)
+    print >> parameters["log"], ("### Pipeline progression\n### Homology search"
+      + "\n### %s\n### Step \t%s\n### Total\t%s") % (date, total, whole)
+
+  ## Multiple Sequence Alignments
+  parameters["inFile"] = resulting_file
+  step_start = datetime.datetime.now()
+  #~ resulting_file = aligner.AlignerPipeline(parameters)
+  step_end = datetime.datetime.now()
+
+  if parameters["verbose"]:
+    date = step_end.strftime("%H:%M:%S %m/%d/%y")
+    total = utils.format_time((step_end - step_start).seconds if step_start \
+      else 0)
+    whole = utils.format_time((step_end - general_start).seconds \
+      if general_start else 0)
+    print >> parameters["log"], ("### Pipeline progression\n### Multiple Sequen"
+      "ce Alignment\n### %s\n### Step \t%s\n### Total\t%s") % (date,total,whole)
+
+  ## Fast evolutionary model selection based on NJ-trees
+  parameters["inFile"] = resulting_file
+  step_start = datetime.datetime.now()
+  #~ resulting_file = tree.ModelSelection(parameters)
+  step_end = datetime.datetime.now()
+
   #~ PhylogeneticTrees(parameters["phyml"], parameters["nj_parameters"], "nj",
     #~ parameters["inFile"], parameters["outDirec"], parameters["evol_models"],
     #~ parameters["verbose"], parameters["replace"])
-#~
+
+  if parameters["verbose"]:
+    date = step_end.strftime("%H:%M:%S %m/%d/%y")
+    total = utils.format_time((step_end - step_start).seconds if step_start \
+      else 0)
+    whole = utils.format_time((step_end - general_start).seconds \
+      if general_start else 0)
+    print >> parameters["log"], ("### Pipeline progression\n### Fast evolutiona"
+      + "ry model selection based on Neighbour-Joining trees\n### %s\n### Step "
+      + "\t%s\n### Total\t%s") % (date, total, whole)
+
+  ## Depending on whether the model selection has been performed using NJ trees
+  ## or the user wants to reconstruct all models using a Maximum-Likelihood
+  ## approach
   #~ rank = SortingLKs(parameters["inFile"], parameters["outDirec"], "nj",
     #~ parameters["evol_models"], parameters["verbose"])
-#~
+
   #~ rank = ' ' . join(rank[:int(parameters["numb_models"])])
-#~
+
+  ## Phylogenetic tree reconstruction based on a Maximum Likelihood framework as
+  ## implemented in PhyML, RAxML or FastML
+  parameters["inFile"] = resulting_file
+  step_start = datetime.datetime.now()
   #~ PhylogeneticTrees(parameters["phyml"], parameters["ml_parameters"], "ml",
     #~ parameters["inFile"], parameters["outDirec"], rank, parameters["verbose"],
     #~ parameters["replace"])
-#~
+  #~ resulting_file = tree.ModelSelection(parameters)
+  step_end = datetime.datetime.now()
+
+  if parameters["verbose"]:
+    date = step_end.strftime("%H:%M:%S %m/%d/%y")
+    total = utils.format_time((step_end - step_start).seconds if step_start \
+      else 0)
+    whole = utils.format_time((step_end - general_start).seconds \
+      if general_start else 0)
+    print >> parameters["log"], ("### Pipeline progression\n### Phylogenetic "
+      + "tree reconstruction based on a Maximum-Likelihood framework\n### %s\n"
+      + "### Step \t%s\n\n### Total Pipeline\t%s\n") % (date, total, whole)
+
   #~ SortingLKs(parameters["inFile"], parameters["outDirec"], "ml", rank,
     #~ parameters["verbose"])
-  #~ # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-#~
-  #~ return 0
-#~
-## ***** ***** ***** ***** ***** ***** ***** ***** *****
+
+  ## Close the log output stream
+  if parameters["log"]:
+    parameters["log"].close()
+
+  return 0
+
 if __name__ == "__main__":
   sys.exit(main())

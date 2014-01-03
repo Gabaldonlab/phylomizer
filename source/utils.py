@@ -31,23 +31,26 @@ def readConfig(input_file):
       parameters[f[0]] = arg
 
   ## Check whether binaries are accessible
-  for binary,path in toCheck["binary"]:
-    progr_path = lookForProgram(binary) if path == "" else lookForProgram(path)
-    if progr_path == None:
-      sys.exit(("ERROR: Impossible to find the binary file '%s'") % (binary))
-    parameters[binary] = progr_path
+  if "binary" in toCheck:
+    for binary,path in toCheck["binary"]:
+      progr_path = lookForProgram(binary) if path == "" else lookForProgram(path)
+      if progr_path == None:
+        sys.exit(("ERROR: Impossible to find the binary file '%s'") % (binary))
+      parameters[binary] = progr_path
 
   ## Check for any file included in the configuration file
-  for key,infile in toCheck["files"]:
-    if not lookForFile(infile):
-      sys.exit(("ERROR: Impossible to find the input file for '%s'") % (key))
-    parameters[key] = infile
+  if "files" in toCheck:
+    for key,infile in toCheck["files"]:
+      if not lookForFile(infile):
+        sys.exit(("ERROR: Impossible to find the input file for '%s'") % (key))
+      parameters[key] = infile
 
   ## Check all directories exist and are accessible
-  for key,direc in toCheck["directory"]:
-    if not lookForDirectory(direc):
-      sys.exit(("ERROR: Impossible to access to '%s' directory") % (key))
-    parameters[key] = direc
+  if "directory" in toCheck:
+    for key,direc in toCheck["directory"]:
+      if not lookForDirectory(direc):
+        sys.exit(("ERROR: Impossible to access to '%s' directory") % (key))
+      parameters[key] = direc
 
   return parameters
 
@@ -89,7 +92,14 @@ def lookForDirectory(input_direct, create = True):
       str(e)))
   return True
 
+def format_time(total_time):
+  ''' Format a given amount of elapsed seconds into a human readable notation
+  '''
 
+  days, remaining = divmod(total_time, 86400)
+  hours, remaining = divmod(remaining, 3600)
+  minutes, seconds = divmod(remaining, 60)
+  return ("%dd:%02dh:%02dm:%02ds") % (days, hours, minutes, seconds)
 
 
 
@@ -368,11 +378,6 @@ def write_alignment(alignment):
   return alg
 ### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
 
-def format_time(total_time):
 
-  days, remainder = divmod(total_time, 86400)
-  hours, remainder = divmod(total_time, 3600)
-  minutes, seconds = divmod(remainder, 60)
-  return ("%dd:%02dh:%02dm:%02ds") % (days, hours, minutes, seconds)
 
 ### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
