@@ -104,6 +104,8 @@ def main():
   parameters["log"] = open(refFile, "w" if parameters["replace"] else "a+") \
     if parameters["verbose"] else None
 
+  parameters["log"] = sys.stdout
+
   ## Read Configuration file and update current structure with the different
   ## parameters
   parameters.update(utils.readConfig(args.config))
@@ -125,7 +127,7 @@ def main():
 
   ## Homology search
   step_start = general_start
-  resulting_file = ""
+  #~ resulting_file = ""
   #~ resulting_file = homology.blast(parameters)
   step_end = datetime.datetime.now()
 
@@ -139,7 +141,7 @@ def main():
       + "\n### %s\n### Step \t%s\n### Total\t%s") % (date, total, whole)
 
   ## Multiple Sequence Alignments
-  parameters["inFile"] = resulting_file
+  #~ parameters["inFile"] = resulting_file
   step_start = datetime.datetime.now()
   #~ resulting_file = aligner.AlignerPipeline(parameters)
   step_end = datetime.datetime.now()
@@ -154,7 +156,7 @@ def main():
       "ce Alignment\n### %s\n### Step \t%s\n### Total\t%s") % (date,total,whole)
 
   ## Fast evolutionary model selection based on NJ-trees
-  parameters["inFile"] = resulting_file
+  #~ parameters["inFile"] = resulting_file
   step_start = datetime.datetime.now()
   #~ resulting_file = tree.ModelSelection(parameters)
   step_end = datetime.datetime.now()
@@ -173,22 +175,11 @@ def main():
       + "ry model selection based on Neighbour-Joining trees\n### %s\n### Step "
       + "\t%s\n### Total\t%s") % (date, total, whole)
 
-  ## Depending on whether the model selection has been performed using NJ trees
-  ## or the user wants to reconstruct all models using a Maximum-Likelihood
-  ## approach
-  #~ rank = SortingLKs(parameters["inFile"], parameters["outDirec"], "nj",
-    #~ parameters["evol_models"], parameters["verbose"])
+  #~ parameters["inFile"] = resulting_file
+  ranked_models = parameters["evol_models"]
 
-  #~ rank = ' ' . join(rank[:int(parameters["numb_models"])])
-
-  ## Phylogenetic tree reconstruction based on a Maximum Likelihood framework as
-  ## implemented in PhyML, RAxML or FastML
-  parameters["inFile"] = resulting_file
   step_start = datetime.datetime.now()
-  #~ PhylogeneticTrees(parameters["phyml"], parameters["ml_parameters"], "ml",
-    #~ parameters["inFile"], parameters["outDirec"], rank, parameters["verbose"],
-    #~ parameters["replace"])
-  #~ resulting_file = tree.ModelSelection(parameters)
+  tree.PhylogeneticTrees(parameters, "ml", ranked_models)
   step_end = datetime.datetime.now()
 
   if parameters["verbose"]:
@@ -200,9 +191,6 @@ def main():
     print >> parameters["log"], ("### Pipeline progression\n### Phylogenetic "
       + "tree reconstruction based on a Maximum-Likelihood framework\n### %s\n"
       + "### Step \t%s\n\n### Total Pipeline\t%s\n") % (date, total, whole)
-
-  #~ SortingLKs(parameters["inFile"], parameters["outDirec"], "ml", rank,
-    #~ parameters["verbose"])
 
   ## Close the log output stream
   if parameters["log"]:
