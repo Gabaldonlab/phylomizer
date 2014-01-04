@@ -48,6 +48,10 @@ def main():
     + "a log file where all messages will be dumped. Otherwise it will be set "
     + "automatically using the output directory and the input file name")
 
+  parser.add_argument("-p", "--prefix", default = "", type = str, help = \
+    "Define the output files prefix. By default it is taken the input file name"
+    + "until the first '.'")
+
   parser.add_argument("-o", "--outdir", default = os.getcwd(), type = str, \
     help = "Define a directory where output files will be stored")
 
@@ -88,14 +92,14 @@ def main():
   parameters.setdefault("replace", args.replace)
   parameters.setdefault("verbose", args.verbose)
 
+  ## Set the output file prefix
+  prefixName = os.path.split(parameters["inFile"])[1].split(".")[0]
+  parameters.setdefault("prefix", args.prefix if args.prefix else prefixName)
+
   ## Set the log file
-  if not args.log:
-    ## Determine automatically the log file name using output directory and
-    ## input file name
-    prefixFile = os.path.split(parameters["inFile"])[1].split(".")[0]
-    refFile = ("%s.log") % (os.path.join(parameters["outdirec"], prefixFile))
-  else:
-    refFile = args.log
+  refFile = args.log if args.log else ("%s.log") % \
+    (os.path.join(parameters["outdirec"], parameters["prefix"]))
+
   ## If log information is requested, open the output stream
   parameters["log"] = open(refFile, "w" if parameters["replace"] else "a+") \
     if parameters["verbose"] else None
