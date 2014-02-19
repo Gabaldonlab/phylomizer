@@ -3,56 +3,65 @@ from operator import itemgetter
 from getpass import getpass
 from string import strip
 
+def parseComments(string_list):
+  '''
+  Generator used to parse a string list containing "#" symbols for comments
+  '''
+  comment = False
+  for e in string_list:
+    if e.startswith("#"):
+      comment = True
+    yield None if comment else e
+
 def readConfig(input_file):
-  ''' Read pipeline configuration file checking whether all files, binaries and
-      directories exist and can be accessed/executed
+  '''
+  Read pipeline configuration file checking whether all files, binaries and
+  directories exist and can be accessed/executed
   '''
 
   toCheck, parameters = {}, {}
   for line in open(input_file, "rU"):
-    f = map(strip, line.split())
+    ## Parse line upon the apperance of the first '#' symbol
+    f = parseComments([e for e in map(strip, line.split()) if e])
+    parsed_line = [element for element in f if element]
 
-    ## Discard empty lines or with comments
-    if f[0].startswith("#") or (len(f) == 1 and f[0] == ""):
+    ## Discard empty lines or those starting by "#"
+    if not parsed_line:
       continue
 
-    ## Comments at the end of the line are allowed
-    arg = []
-    for e in f[2:]:
-      if e.startswith("#"):
-        break
-      arg.append(e)
-    arg = "" if arg == [] else " ".join(arg)
+    ## Get additional arguments in the input line
+    args = "" if len(parsed_line) < 2 else " ".join(parsed_line[2:])
 
-    dtype = f[1].lower()
-    if dtype in ["binary", "files", "directory"]:
-      toCheck.setdefault(dtype, []).append((f[0], arg))
-    else:
-      parameters[f[0]] = arg
+    ## Depending on the TAG for the current parameter, they need to be verify
+    param = parsed_line[0]
+    tag = parsed_line[1].lower()
 
-  ## Check whether binaries are accessible
-  if "binary" in toCheck:
-    for binary,path in toCheck["binary"]:
-      progr_path = lookForProgram(binary) if path == "" else lookForProgram(path)
-      if progr_path == None:
-        sys.exit(("ERROR: Impossible to find the binary file '%s'") % (binary))
-      parameters[binary] = progr_path
+    ## Check for the binary in the current PATH if not specific path is specific
+    if tag == "binary":
+      args = lookForProgram(param) if not args else lookForProgram(args)
+      if not args:
+        sys.exit(("ERROR: Impossible to find the binary for '%s'") % (param))
 
-  ## Check for any file included in the configuration file
-  if "files" in toCheck:
-    for key,infile in toCheck["files"]:
-      if not lookForFile(infile):
-        sys.exit(("ERROR: Impossible to find the input file for '%s'") % (key))
-      parameters[key] = infile
+    ## Check whether current file exist
+    elif tag == "file":
+      if not lookForFile(args):
+        sys.exit(("ERROR: Check your input file '%s'") % (args))
 
-  ## Check all directories exist and are accessible
-  if "directory" in toCheck:
-    for key,direc in toCheck["directory"]:
-      if not lookForDirectory(direc):
-        sys.exit(("ERROR: Impossible to access to '%s' directory") % (key))
-      parameters[key] = direc
+    ## Check directories exist and are writable
+    elif tag == "file":
+      if not lookForDirectory(args):
+        sys.exit(("ERROR: Check your input directory '%s'") % (args))
+
+    ## Since the 'mode' tag define which programs should be executed in a given
+    ## step, convert the arguments line into a line
+    elif tag == "mode":
+      args = args.split()
+
+    ## Assign to the current parameter, its arguments string
+    parameters[param] = args
 
   return parameters
+
 
 def lookForProgram(binary):
   ''' Return if a given binary is on the file system
@@ -71,7 +80,11 @@ def lookForProgram(binary):
 def lookForFile(input_file):
   ''' Return if a given file exists or not
   '''
-  return (os.path.isfile(input_file) and os.path.getsize(input_file) > 0)
+  try:
+    return (os.path.isfile(input_file) and os.path.getsize(input_file) > 0)
+  except:
+    print input_file
+    return False
 
 def lookForDirectory(input_direct, create = True):
   ''' Return whether a given folder exists or it has been created.

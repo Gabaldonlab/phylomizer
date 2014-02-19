@@ -2,7 +2,13 @@
 #
 # You can use the wildcard "#" to put some comments in this file.
 #
-# There are 4 different parameters type:
+# There are several parameters type:
+
+#
+# > "mode": It would set which mode, among the available ones, should be used to
+#           perform a specific step of the pipeline. It would also define which
+#           binary program would be use to execute the given step
+#
 #   program parameters:   <parameter_name> parameter <parameters>
 #   program pathways:     <program_name> binary <path>
 #   or
@@ -16,51 +22,88 @@
 # script will evaluate that the program exists.
 #
 # There is not problem for using <tab> or <blank_spaces>
-#
+
 verbose           parameter	 1
 
-## Homology search program
-blastpgp          binary
-blast_params      parameter	 -FT -b 5000 -a 2 -m8 -s -z 1000000 -t0
+## Set the residues datatype for the whole pipeline. It will affect for the
+## homology search but also other parts of the pipeline such as alignments -
+## whether amino-acid residues in the trimmed alignment should be converted to
+## their corresponding codon or nucleotides prior to the phylogenetic tree
+## reconstruction - or phylogenetic tree reconstruction - when model selection
+## is used. Available values are "protein", "prot2codon", "prot2nuc" or "nuc"
 
-## General homology search parameters
+residue_datatype  parameter  protein
+
+## HOMOLOGY SEARCH Step. General parameters, available modes and programs are
+## defined here
+
+## General parameters
 e_value           parameter	 1e-5
 coverage          parameter	 0.5
 hits              parameter	 150
 
+## Protein Homology search
+
+## Legacy NCBI BLAST
+# legacy_blast      mode       blastpgp
+blastpgp          binary
+blastpgp_params   parameter	 -FT -b 5000 -a 2 -m8 -s -z 1000000 -t0
+
+## NCBI BLAST+
+# blast+            mode       psiblast
+psiblast          binary
+psiblast_params   parameter	 -seg yes -num_alignments 5000 -num_threads 2 -outfmt 6 -use_sw_tback -dbsize 1000000 -comp_based_stats 0
+
+## HMMER flavors
+# hmmer             mode       phmmer ## we can also use 'jackhmmer' or 'hmmbuild'
+hmmer             mode       hmmsearch ## we can also use 'jackhmmer' or 'hmmbuild'
+hmmer_params      parameter  --noali --nobias --nonull2 --cpu 2 -Z 1000000
+
+phmmer            binary
+
+## jackhmmer is an iterative search akin to PSI-BLAST
+jackhmmer         binary
+
+## It's also possible to perform the homology search using an input alignment
+## for HMMSearch
+hmmbuild          binary
+hmmsearch         binary
+################################################################################
+
+
 ## Aligners
-muscle            binary        muscle3.8
-muscle_params     parameter
-mafft             binary
-mafft_params      parameter	    --auto
-kalign            binary
-kalign_params     parameter     -f fasta
-
-## It's also possible to use DiAlign-TX
-# dialign-tx        binary
-# dialigntx_params  parameter	/usr/share/dialign-tx/
-
-## MetaAligner
-t_coffee          binary
-mcoffee_params    parameter	-n_core 1 -output fasta
-
-## General parameters for aligner programs. Sometimes rare aminoacids such as
-## selenocysteine 'U' or pyrrolysine 'O'
-in_letter         parameter	 B
-
-## Alignment manipulation & trimming programs
+#muscle            binary        muscle3.8
+#muscle_params     parameter
+#mafft             binary
+#mafft_params      parameter	    --auto
+#kalign            binary
+#kalign_params     parameter     -f fasta
+#
+### It's also possible to use DiAlign-TX
+## dialign-tx        binary
+## dialigntx_params  parameter	/usr/share/dialign-tx/
+#
+### MetaAligner
+#t_coffee          binary
+#mcoffee_params    parameter	-n_core 1 -output fasta
+#
+### General parameters for aligner programs. Sometimes rare aminoacids such as
+### selenocysteine 'U' or pyrrolysine 'O'
+#in_letter         parameter	 B
+#
+### Alignment manipulation & trimming programs
 readal            binary
-trimal            binary
-trimal_params     parameter	-phylip -gt 0.1
-trimal_compare    parameter	-ct 0.1667
-
-## Phylogenetic tree reconstruction program
-phyml             binary
+#trimal            binary
+#trimal_params     parameter	-phylip -gt 0.1
+#trimal_compare    parameter	-ct 0.1667
+#
+### Phylogenetic tree reconstruction program
+#phyml             binary
 
 ## Parameters for PhyML
-nj                parameter	-d aa -b 0  -f e -v e -a e -o l -c 4 --no_memory_check
-ml                parameter	-d aa -b -2 -f e -v e -a e -o tlr -c 4 --no_memory_check
-evol_models       parameter	JTT WAG MtREV VT LG Blosum62 Dayhoff
+# nj                parameter	-d aa -b 0  -f e -v e -a e -o l -c 4 --no_memory_check
+# ml                parameter	-d aa -b -2 -f e -v e -a e -o tlr -c 4 --no_memory_check
+# evol_models       parameter	JTT WAG MtREV VT LG Blosum62 Dayhoff
 
 ## Number of evolutionary models to reconstruct on a ML framework
 ## It's only useful when a NJ-based model selection is used

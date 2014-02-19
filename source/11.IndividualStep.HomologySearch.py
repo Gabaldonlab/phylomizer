@@ -1,69 +1,62 @@
 #!/usr/bin/python
-## ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** *****
-import sys, os, getopt
-from blaster import *
-from utils import *
-## ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** *****
+import os
+import sys
+import argparse
+from module_utils import *
+from module_homology import *
 
-## ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** *****
-def main(argv):
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  parameters = {
-    "inFile": ['file', ''],
-    "config": ['file', ''],
-    "replace": ['bool', False],
-    "BlastDB": ['file', ''],
-    "outDirec": ['directory', '.']
-  }  
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  try: opts, args = getopt.getopt(argv, "f:d:b:c:r", ["file=", "dest=",\
-                    "replace", "db=", "config="])
-  except getopt.GetoptError: sys.exit("ERROR: Check the input parameters")
-
-  for opt, arg in opts:
-    if   opt in ("-f", "--file"):     parameters["inFile"][1]   = str(arg)
-    elif opt in ("-d", "--dest"):     parameters["outDirec"][1] = str(arg)
-    elif opt in ("-b", "--db"):       parameters["BlastDB"][1]  = str(arg)
-    elif opt in ("-c", "--config"):   parameters["config"][1]   = str(arg)
-    elif opt in ("-r", "--replace"):  parameters["replace"][1]  = True
-    else: sys.exit("ERROR: Parameter not Available")
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  if not lookForFile(parameters["config"][1]):
-    sys.exit("ERROR: Config file not available")
-  else: readConfig(parameters["config"][1], parameters)  
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  if not lookForFile(parameters["inFile"]):
-    sys.exit("ERROR: Input file not available")
-
-  if not lookForFile(parameters["BlastDB"]):
-    sys.exit("ERROR: BlastDB file not available")
-
-  parameters["outDirec"] = os.path.abspath(parameters["outDirec"])
-  if not lookForDirectory(parameters["outDirec"]):
-      sys.exit("ERROR: It is impossible to create the output directory")
-
-  if not lookForProgram(parameters["blastpgp"]):
-    sys.exit("ERROR: It is impossible to find PHYML")
-
-  if float(parameters["coverage"]) > 1 or float(parameters["coverage"]) <= 0:
-    sys.exit("ERROR: The coverage has to be defined between 0 and 1")
-
-  if int(parameters["hits"]) < 1:
-    sys.exit("ERROR: The Number of hits for the Blast Output has to be greater"\
-             + "than 0")
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  blast(parameters)
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  
-## ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** *****
 if __name__ == "__main__":
-  sys.exit(main(sys.argv[1:]))
+
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument("-i", "--in", dest = "inFile", type = str, default = None,
+    help = "Input file containing the query sequence/s")
+
+  parser.add_argument("-d", "--db", dest = "dbFile", type = str, default = None,
+    help = "Input file containing the target sequence database")
+
+  parser.add_argument("-c", "--config", dest = "configFile", default = None, \
+    type = str, help = "Input configuration file")
+
+  parser.add_argument("-o", "--out", dest = "outFolder", type = str, default = \
+    ".", help = "Output folder where all generated files will be dumped")
+
+  parser.add_argument("-r", "--replace", dest = "replace", default = False, \
+    action = "store_true", help = "Over-write any previously generated file")
+
+  args = parser.parse_args()
+
+  parameters = {}
+  parameters.setdefault("replace", args.replace)
+
+  ## Assign input parameters directly to the dictionary which will contain all
+  ## current run configuration. Check all of them
+  if not lookForFile(args.inFile):
+    sys.exit(("ERROR: Check input QUERY SEQUENCE/s file '%s'") % (args.inFile))
+  parameters.setdefault("in_file", args.inFile)
+
+  if not lookForFile(args.dbFile):
+    sys.exit(("ERROR: Check input TARGET SEQUENCES file '%s'") % (args.dbFile))
+  parameters.setdefault("db_file", args.dbFile)
+
+  if not lookForFile(args.configFile):
+    sys.exit(("ERROR: Check input CONFIG file '%s'") % (args.configFile))
+  parameters.setdefault("config_file", args.configFile)
+
+  if not lookForDirectory(args.outFolder):
+    sys.exit(("ERROR: Check output folder '%s'") % (args.outFolder))
+  parameters.setdefault("out_directory", os.path.abspath(args.outFolder))
+
+  ## Read the other parameters from the input config file
+  parameters.update(readConfig(parameters["config_file"]))
+
+  ## Check specific values for input parameters.
+  if not "coverage" in parameters or not (0.0 < float(parameters["coverage"]) \
+    <= 1.0):
+    sys.exit(("ERROR: Check your 'coverage' parameter"))
+
+  if not "hits" in parameters or int(parameters["hits"]) < 1:
+    sys.exit(("ERROR: Check your 'hits' upper limit value"))
+
+  ## Launch the whole homology process
+  homology(parameters)
