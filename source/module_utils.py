@@ -127,7 +127,7 @@ def splitSequence(seq, length = 80):
   '''
   return "\n".join([seq[i:i + length] for i in range(0, len(seq), length)])
 
-def sort_hits(x, y):
+def sort_blast_hits(x, y):
   ''' Return 1, 0, -1 depending on the values comparison for BLAST hits result
       generated using the -m8 format
   '''
@@ -135,9 +135,27 @@ def sort_hits(x, y):
   if float(x[10]) > float(y[10]):
     return 1
   elif float(x[10]) < float(y[10]):
-    return -1;
+    return -1
   elif float(x[11]) < float(y[11]):
     return 1
   elif float(x[11]) > float(y[11]):
     return -1
+  return 0
+
+def sort_hmmer_hits(x, y):
+  ''' Return 1, 0, -1 depending on the values comparison for HMMER hits result
+      generated using the --tblout format
+  '''
+
+  try:
+    if float(x[4]) > float(y[4]):
+      return 1
+    elif float(x[4]) < float(y[4]):
+      return -1
+    elif float(x[7]) < float(y[7]):
+      return 1
+    elif float(x[7]) > float(y[7]):
+      return -1
+  except:
+    print ("x: %s\ty: %s") % (x, y)
   return 0

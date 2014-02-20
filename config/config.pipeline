@@ -40,7 +40,7 @@ residue_datatype  parameter  protein
 ## General parameters
 e_value           parameter	 1e-5
 coverage          parameter	 0.5
-hits              parameter	 150
+hits              parameter	 150  ## you can set 'no_limit' for avoiding selecting an specific number of hits during the homology search
 
 ## Protein Homology search
 

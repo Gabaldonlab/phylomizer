@@ -1,21 +1,19 @@
 #!/usr/bin/python
-## ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** *****
+
 import os
-import hashlib
 import tempfile
 import datetime
 import subprocess as sp
 from Bio import SeqIO
-from string import strip, capitalize
-from module_utils import *
+from hashlib import md5
+from string import strip, capitalize, ljust
+from module_utils import lookForDirectory, lookForFile, splitSequence, \
+  parseComments, format_time, sort_blast_hits, sort_hmmer_hits
 
 def homology(parameters):
 
-  ## Get input folder/filename
-  iFolder, iFile = os.path.split(parameters["in_file"])
-
   ## Get output folder/generic filename
-  oFile = os.path.join(parameters["out_directory"], iFile.split(".")[0])
+  oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
 
   ## Set output filename and log file
   logFile = open(oFile + ".log", "w" if parameters["replace"] else "a+")
@@ -23,7 +21,7 @@ def homology(parameters):
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
   print >> logFile, ("###\n###\tSTEP\tHomology\tSTART\t%s\n###") % (date)
-  logFile.close()
+  logFile.flush()
 
   ## Check which mode will be used for the homology search
   modes = set(parameters.keys()) & set(["hmmer", "legacy_blast", "blast+"])
@@ -55,101 +53,74 @@ def homology(parameters):
 
     ## If the homology search step should be perfomed using BLAST, call the
     ## appropiate function
-    blast(parameters)
+    blast(parameters, logFile)
 
   elif "hmmer" in parameters:
-    hmmer(parameters)
+    hmmer(parameters, logFile)
 
+  ## Filter homology search data. A dictionary containing selected sequences,
+  ## including the sequences themselves
+  selected_sequences = filter_results(parameters, logFile)
+
+  ## Generate a MD5 file containing selected sequences for the current run.
+  ## MD5s are used to recompute the same phylogenetic tree starting from other
+  ## seqs - with identical similarity search results - in the set of homologs
+  outFile = ("%s.seqs.md5") % (oFile)
+
+  ## Check whether the file already exists or not.
+  if not lookForFile(outFile) or parameters["replace"]:
+    parameters["replace"] = True
+
+    seqs_md5 = md5("".join(sorted(selected_sequences.keys()))).hexdigest()
+    print >> open(outFile, "w"), ("%s\t%s") % (parameters["prefix"], seqs_md5)
+
+  ## Generate a file containing the selected sequences after performing the
+  ## homology search and filtering its output according to a set of parameters.
+  outFile = ("%s.seqs") % (oFile)
+
+  ## Check whether the file already exists or not.
+  if not lookForFile(outFile) or parameters["replace"]:
+    parameters["replace"] = True
+
+    output_file = open(outFile, "w")
+    for seqId in sorted(selected_sequences):
+      print >> output_file, (">%s\n%s") % (seqId, selected_sequences[seqId][1])
+    output_file.close()
+
+  ## Print how much time was needed to perform the whole homology search step
   final = datetime.datetime.now()
   date  = final.strftime("%H:%M:%S %m/%d/%y")
-  logFile = open(oFile + ".log", "a+")
+
   print >> logFile, ("###\n###\tSTEP\tHomology\tEND\t%s") % (date)
   total = format_time((final - start).seconds if start else 0)
   print >> logFile, ("###\tTOTAL Time\tHomology\t%s\n###") % (total)
   logFile.close()
-#~
-#~
-#~
-  #~ db, mappedIDs = None, None
-  #~ outFile = ("%s.blast.filter") % (oFile)
-#~
-  #~ ## If BLAST filtered results, read BLAST output and filter it according to
-  #~ ## config options
-  #~ if not lookForFile(outFile) or parameters["replace"]:
-    #~ parameters["replace"] = True
-#~
-    #~ if not start:
-      #~ start = datetime.datetime.now()
-#~
-    #~ output = [line for line in open(("%s.blast.out") % (oFile), "rU")]
-    #~ db, mappedIDs = getMappedDB(parameters["BlastDB"])
-#~
-    #~ proteinID = iFile.split(".")[0]
-    #~ lenQuery = len(lookForSequence(proteinID, db[mappedIDs[proteinID]]))
-#~
-    #~ filteredResults = filterBLAST(proteinID, output, lenQuery,
-      #~ parameters["coverage"], parameters['hits'], db,  mappedIDs)
-#~
-    #~ generateBlastOutput(outFile, filteredResults)
-#~
-  #~ ## If BLAST filtered results already exist, read information.
-  #~ elif lookForFile(outFile):
-    #~ filteredResults = [map(strip, l.split("\t")) for l in open(outFile, "rU")]
-#~
-  #~ outFile = ("%s.seqs") % (oFile)
-  #~ ## Generate output sequences files
-  #~ if not lookForFile(outFile) or parameters["replace"]:
-    #~ parameters["replace"] = True
-#~
-    #~ if not start:
-      #~ start = datetime.datetime.now()
-#~
-    #~ ## If Blast database has not been loaded in a previous step, do it
-    #~ if not db or not mappedIDs:
-      #~ db, mappedIDs = getMappedDB(parameters["BlastDB"])
-#~
-    #~ generateSequences(outFile, filteredResults, db, mappedIDs)
-#~
-  #~ outFile = ("%s.seqs.md5") % (oFile)
-  #~ ## Generate MD5 file if already does not exist or any of previous files
-  #~ ## has been modified
-  #~ if not lookForFile(outFile) or parameters["replace"]:
-    #~ parameters["replace"] = True
-#~
-    #~ if not start:
-      #~ start = datetime.datetime.now()
-#~
-    #~ key = iFile.split(".")[0]
-    #~ generateMD5(outFile, parameters["outDirec"], key, filteredResults)
-#~
-  #~ final = datetime.datetime.now()
-  #~ date  = final.strftime("%H:%M:%S %m/%d/%y")
-  #~ print >> logFile, ("### %s\n### Finishing BLAST step") % (date)
-  #~ total = format_time((final - start).seconds if start else 0)
-  #~ print >> logFile, ("### Total BLAST step\t%s") % (total)
-  #~ logFile.close()
-#~
-  #~ return ("%s.seqs") % (oFile)
 
-def blast(parameters):
+  ## Update the input file parameter and return the dictionary containing all
+  ## parameters. Those parameters may be used in other steps
+  parameters["in_file"] = outFile
 
-  ## Get input folder/filename
-  iFolder, iFile = os.path.split(parameters["in_file"])
+  return parameters
+
+def blast(parameters, logFile):
+  '''
+  Perform the homology search using the different BLAST package programs. This
+  module offers retrocompatibility to legacy blast.
+  '''
 
   ## Get output folder/generic filename
-  oFile = os.path.join(parameters["out_directory"], iFile.split(".")[0])
-
-  ## Set output filename and log file
-  logFile = open(oFile + ".log", "a+")
+  oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
 
   ## Get output file name and check whether has been previously generated or
   ## not. It will also affect whether the variable REPLACE is set or not
-  outFile = ("%s.homology.out") % (oFile)
+  outFile = ("%s.homology.blast.out") % (oFile)
 
-  ## If BLAST output does not exist, generate it and, therefore, replace any
-  ## file generated downstream
-  if not lookForFile(outFile) or parameters["replace"]:
-    parameters["replace"] = True
+  ## If output file exist and it is not set to replace it, just go back to the
+  ## main function. Otherwise, set the replace parameter to TRUE in other to
+  ## replace any already generated file downstream
+  if lookForFile(outFile) and not parameters["replace"]:
+    return
+  parameters["replace"] = True
 
   ## Generate command-line depending on which BLAST package is being used.
   if "legacy_blast" in parameters:
@@ -177,27 +148,25 @@ def blast(parameters):
   if proc.wait() != 0:
     sys.exit(("ERROR: Execution failed: '%s'") % (parameters[binary]))
 
-  logFile.close()
-
-def hmmer(parameters):
-
-  ## Get input folder/filename
-  iFolder, iFile = os.path.split(parameters["in_file"])
+def hmmer(parameters, logFile):
+  '''
+  Perform the homology search using three different approximations implemented
+  in the HMMER package.
+  '''
 
   ## Get output folder/generic filename
-  oFile = os.path.join(parameters["out_directory"], iFile.split(".")[0])
-
-  ## Set output filename and log file
-  logFile = open(oFile + ".log", "a+")
+  oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
 
   ## Get output file name and check whether has been previously generated or
   ## not. It will also affect whether the variable REPLACE is set or not
-  outFile = ("%s.homology.out") % (oFile)
+  outFile = ("%s.homology.hmmer.out") % (oFile)
 
-  ## If output file does not exist, generate it and, therefore, replace any
-  ## file generated downstream
-  if not lookForFile(outFile) or parameters["replace"]:
-    parameters["replace"] = True
+  ## If output file exist and it is not set to replace it, just go back to the
+  ## main function. Otherwise, set the replace parameter to TRUE in other to
+  ## replace any already generated file downstream
+  if lookForFile(outFile) and not parameters["replace"]:
+    return
+  parameters["replace"] = True
 
   ## If we are ask to perform a HMM search using a Multiple Sequence Alignment
   ## as input rather than a single sequence, we need first to construct a HMM
@@ -218,7 +187,7 @@ def hmmer(parameters):
     ## Set the current residues type to amino-acids if search is performed using
     ## proteins, otherwise, allow the program to guess it
     dt = "--amino" if parameters["residue_datatype"].startswith("prot") else ""
-    hmmFile = ("%s.homology.hmm") % (oFile)
+    hmmFile = ("%s.homology.hmmer.hmm") % (oFile)
 
     cmd = ("%s --informat afa %s %s %s") % (parameters["hmmbuild"], dt, hmmFile,
       TEMPFILE.name)
@@ -257,143 +226,123 @@ def hmmer(parameters):
   if proc.wait() != 0:
     sys.exit(("ERROR: Execution failed: '%s'") % (parameters[binary]))
 
-  logFile.close()
-
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-def filterBLAST(seed_proteinID, blastResult, lenQuery, coverage, numberHits, \
-  db, mappedIDs):
+def filter_results(parameters, logFile):
   '''
+  Filter Homology search results taking into account which package was used to
+  perform the search. Depending on the package only e-values (HMMER) or e-value
+  plus coverage -ratio of aligned region between query and target sequences vs.
+  query sequence lenght- (BLAST) are used.
   '''
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  upperLimit, lowerLimit = (3 * lenQuery) + 1,(lenQuery / 3) - 1
-  lines, seedLine, acceptedHits = [], [], []
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
 
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  for line in blastResult:
-    fields = line.strip().split() if line != "" else None
-    protid = fields[1].split("|")[0]
+  ## Get output folder/generic filename
+  oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
 
-    if fields and protid == seed_proteinID and not seedLine:
-      seedLine = [fields]
+  ## Get tag for the input/output file. It will depend on which method has been
+  ## used to perform the homology seach
+  tag = "hmmer" if "hmmer" in parameters else "blast" if "legacy_blast" in \
+    parameters or "blast+" in parameters else ""
 
-    if fields and protid not in acceptedHits:
-      protid = fields[1].split("|")[0]
-      seq = len(lookForSequence(protid, db[mappedIDs[protid]]))
-      covQueryHit = ((int(fields[7]) - int(fields[6])) + 1) / float(lenQuery)
+  ## Get input file
+  inFile = ("%s.homology.%s.out") % (oFile, tag)
+  ## If input file doesn't exist, just go back to the main function
+  if not lookForFile(inFile):
+    sys.exit(("ERROR: Check previously generated file '%s'") % (inFile))
 
-      if covQueryHit > float(coverage) and seq < upperLimit and seq > lowerLimit:
-        acceptedHits.append(protid)
-        lines.append(fields)
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  lines.sort(sort_hits)
-  if not seed_proteinID in acceptedHits:
-    if len(lines) >= int(numberHits):
-      lines = seedLine + lines[:int(numberHits) - 1]
+  ## Get input file name and check whether has been previously generated or
+  ## not. It will also affect whether the variable REPLACE is set or not
+  outFile = ("%s.homology.%s.filter") % (oFile, tag)
+
+  ## If output file exist and it is not set to replace it, just go back to the
+  ## main function. Otherwise, set the replace parameter to TRUE in other to
+  ## replace any already generated file downstream
+  if lookForFile(outFile) and not parameters["replace"]:
+    return
+  parameters["replace"] = True
+
+  input_lines, target_sequences, query_line = [], set(), None
+  for line in open(inFile, "rU"):
+    ## Parse line
+    parsed_line = [element for element in parseComments([e for e in map(strip, \
+      line.split()) if e]) if element]
+
+    ## Discard empty lines or those starting by "#"
+    if not parsed_line:
+      continue
+
+    ## Detect the target sequence which is placed at different columns depending
+    ## whether it is blast or hmmer package which generated the output
+    target = parsed_line[0] if tag == "hmmer" else parsed_line[1]
+    ## We also include the query sequence, it is only important for the BLAST-
+    ## based search
+    query = parsed_line[2] if tag == "hmmer" else parsed_line[0]
+
+    ## Discard previously found target sequences
+    if target in target_sequences:
+      continue
+    input_lines.append(parsed_line)
+    target_sequences|= set([target, query])
+
+    if target == query and not query_line:
+      query_line = parsed_line
+
+  sequences = read_database(parameters["db_file"], target_sequences)
+
+  ## Depending on how the search was performed, we will filter-out data
+  ## by e-values and coverage (BLAST only) or not
+  e_value = float(parameters["e_value"])
+  coverage = float(parameters["coverage"])
+  hits = -1 if not "hits" in parameters or parameters["hits"] == "no_limit" \
+    else int(parameters["hits"])
+
+  accepted_lines, accepted_targets = [], set()
+  for line in input_lines:
+    ## If the current target has been already found, move to next hit
+    if (line[0] if tag == "hmmer" else line[1]) in accepted_targets:
+      continue
+    ## Depending on the package, filter just by two e-values (sequence and best
+    ## found domain) or by sequence e-value + coverage between sequences
+    if tag == "hmmer":
+      if float(line[4]) > e_value or float(line[7]) > e_value:
+        continue
+    elif tag == "blast":
+      covTarget = ((int(line[7]) - int(line[6]))+1)/float(sequences[line[0]][1])
+      if covTarget < coverage or float(line[-2]) > e_value:
+        continue
+
+    ## Store current line and target sequence
+    accepted_lines.append(line)
+    accepted_targets.add(line[0] if tag == "hmmer" else line[1])
+
+  ## Sort by e-values (and bit-score for BLAST only) accepted lines
+  accepted_lines.sort(sort_blast_hits if tag == "blast" else sort_hmmer_hits)
+
+  if hits != -1 and len(accepted_lines) >= hits:
+    if not query in accepted_targets and query_line:
+      accepted_lines = query_line + accepted_lines[:hits-1]
     else:
-      lines = seedLine + lines
-  return lines[:int(numberHits)]
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+      accepted_lines = accepted_lines[:hits]
 
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-def generateBlastOutput(outFile, outLines):
-  '''
-  Given an output file and a certain lines, print these lines in the given file
-  '''
-  oFile = open(outFile, "w")
-  for line in outLines: print >> oFile, "\t". join(line)
-  oFile.close()
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+  ## Get selected sequences. It will be used to produce MD5s key as well as to
+  ## generate the sequences FASTA file
+  selected_sequences = {}
+  for line in accepted_lines:
+    sequence_id = line[0] if tag == "hmmer" else line[1]
+    selected_sequences.setdefault(sequence_id, sequences[sequence_id])
 
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-def generateSequences(outFile, outLines, db, mappedIDs):
-  '''
-  '''
-  oFile = open(outFile, "w")
-  for hit in outLines:
-    proteinID = hit[1].split("|")[0]
-    seq = lookForSequence(proteinID, db[mappedIDs[proteinID]])
-    print >> oFile, ">" + proteinID
-    for line in split_len(seq, 60): print >> oFile, line
-  oFile.close()
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+  out = ["\t".join(map(lambda x: str(x).ljust(8), l)) for l in accepted_lines]
+  print >> open(outFile, "w"), "\n".join(out)
 
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-def generateMD5(outFile, outFolder, ID, outLines):
-  '''
-  '''
-  oFile = open(outFile, "w")
-  hits = ''.join(sorted([ hit[1].split("|")[0] for hit in outLines]))
-  print >> oFile, ID + "\t" + hashlib.md5(hits).hexdigest()
-  oFile.close()
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+  return selected_sequences
 
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-def getMappedDB(BlastDB):
+def read_database(input_db_file, sequences):
   '''
-  Returns a dictionnary with Seq objetcs contained in a multiFASTA file,
-  under "longest" or "others" key depending if the sequence is the longest
-  isoform of a given gene or not
+  Read input TARGET Sequences database returning those sequences which may be
+  potentially selected during the filtering step
   '''
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  MultiFASTA, db, record, prot, gen = open(BlastDB, "rU"), {}, {}, "", ""
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  for line in MultiFASTA.readlines():
-    if line[0] == ">":
-      if record != {}:
-        # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-        if db.has_key(record['gen']):
-          if len(db[record['gen']]['longest']['seq']) < len(record['seq']):
-            db[record['gen']]['others'].append(db[record['gen']]['longest'])
-            db[record['gen']]['longest'] = record
-          else:
-            db[record['gen']]['others'].append(record)
-        else:
-          db[record['gen']] = { 'longest': record, 'others': []}
-      # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** *****
-      prot = line[1:].strip().split('|')[0]
-      try: gen = line[1:].strip().split('|')[1] + '-' + prot[0:3]
-      except: gen = prot  + '-' + prot[0:3]
-      gen = gen.replace(" ", "_") if len(gen.split()) > 1 else gen
-      # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-      record = {'id': prot, 'gen': gen, 'seq': "" }
-      # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-    else: record['seq'] += line.strip().replace("*", "")
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  if db.has_key(record['gen']):
-    if len(db[record['gen']]['longest']['seq']) < len(record['seq']):
-      db[record['gen']]['others'].append(db[record['gen']]['longest'])
-      db[record['gen']]['longest'] = record
-    else:
-      db[record['gen']]['others'].append(record)
-  else:
-    db[record['gen']] = { 'longest': record, 'others': []}
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  mappedIDs = {}
-  for gen in db:
-    mappedIDs[db[gen]['longest']['id']] = gen
-    for protein in db[gen]['others']:
-      mappedIDs[protein['id']] = gen
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  MultiFASTA.close()
-  return db, mappedIDs
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-def lookForSequence(key, entryDB):
-  '''
-  '''
-  if entryDB['longest']['id'] == key:
-    return entryDB['longest']['seq']
-  for member in entryDB['others']:
-    if member['id'] == key: return member['seq']
-  return ''
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+  output = {}
+  for record in SeqIO.parse(input_db_file, "fasta"):
+    if not record.id in sequences:
+      continue
+    seq = str(record.seq) if record.seq[-1] != "*" else record.seq[:-1]
+    output.setdefault(record.id, (len(seq), splitSequence(seq)))
+  return output
