@@ -40,25 +40,25 @@ residue_datatype  parameter  protein
 ## General parameters
 e_value           parameter	 1e-5
 coverage          parameter	 0.5
-hits              parameter	 150  ## you can set 'no_limit' for avoiding selecting an specific number of hits during the homology search
+## you can set 'no_limit' for avoiding selecting any specific number of hits during the search
+hits              parameter	 150
 
 ## Protein Homology search
 
+homology           mode      legacy_blast
+
 ## Legacy NCBI BLAST
-# legacy_blast      mode       blastpgp
+legacy_blast      mode      blastpgp
 blastpgp          binary
 blastpgp_params   parameter	 -FT -b 5000 -a 2 -m8 -s -z 1000000 -t0
 
 ## NCBI BLAST+
-# blast+            mode       psiblast
+blast+            mode      psiblast
 psiblast          binary
-psiblast_params   parameter	 -seg yes -num_alignments 5000 -num_threads 2 -outfmt 6 -use_sw_tback -dbsize 1000000 -comp_based_stats 0
+psiblast_params   parameter	 -seg yes -num_alignments 5000 -num_threads 2
+psiblast_params   parameter	 -outfmt 6 -use_sw_tback -dbsize 1000000 -comp_based_stats 0
 
-## HMMER flavors
-# hmmer             mode       phmmer ## we can also use 'jackhmmer' or 'hmmbuild'
-hmmer             mode       hmmsearch ## we can also use 'jackhmmer' or 'hmmbuild'
-hmmer_params      parameter  --noali --nobias --nonull2 --cpu 2 -Z 1000000
-
+## HMMER Search based on a single query sequence rather than an alignment
 phmmer            binary
 
 ## jackhmmer is an iterative search akin to PSI-BLAST
@@ -68,6 +68,9 @@ jackhmmer         binary
 ## for HMMSearch
 hmmbuild          binary
 hmmsearch         binary
+
+## HMMER parameters
+hmmer_params      parameter  --noali --nobias --nonull2 --cpu 2 -Z 1000000
 ################################################################################
 
 

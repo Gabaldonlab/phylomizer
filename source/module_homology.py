@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os
+import sys
 import tempfile
 import datetime
 import subprocess as sp
@@ -23,19 +24,19 @@ def homology(parameters):
   print >> logFile, ("###\n###\tSTEP\tHomology\tSTART\t%s\n###") % (date)
   logFile.flush()
 
-  ## Check which mode will be used for the homology search
-  modes = set(parameters.keys()) & set(["hmmer", "legacy_blast", "blast+"])
-  if len(modes) > 1:
-    packs = ",".join(sorted(map(capitalize, modes)))
-    sys.exit(("ERROR: Check your configuration file. There is more than one "
-      + "package configured for performing the homology search '%s'") % (packs))
-  elif len(modes) < 1:
-    sys.exit("ERROR: Check your configuration file. There is not package select"
-      + "ed for performing the homology search")
+  ## Get which tool will be used to perform the homology search. Check such tool
+  ## is listed among the available binaries
+  if not "homology" in parameters:
+    sys.exit("ERROR: Check your configuration file. There is not tool set for "
+      + "the homology search")
+
+  if not parameters["homology"][0] in parameters:
+    sys.exit("ERROR: Check your configuration file. This tool '%s' is not among"
+      + " available methods")
 
   ## If the homology search will use any program from the BLAST package, check
   ## whether the TARGET SEQUENCES file has been already formatted.
-  if "legacy_blast" in parameters or "blast+" in parameters:
+  if parameters["homology"][0] in ["legacy_blast", "blast+"]:
 
     ## Get database sequence type - p: protein or n:nucleotide
     dt = "p" if parameters["residue_datatype"].startswith("prot") else "n"
@@ -55,7 +56,7 @@ def homology(parameters):
     ## appropiate function
     blast(parameters, logFile)
 
-  elif "hmmer" in parameters:
+  elif parameters["homology"][0] in ["phmmer", "jackhmmer", "hmmer_search"]:
     hmmer(parameters, logFile)
 
   ## Filter homology search data. A dictionary containing selected sequences,
@@ -123,14 +124,14 @@ def blast(parameters, logFile):
   parameters["replace"] = True
 
   ## Generate command-line depending on which BLAST package is being used.
-  if "legacy_blast" in parameters:
+  if parameters["homology"][0] == "legacy_blast":
     binary = parameters["legacy_blast"][0]
     params = parameters[binary +"_params"]
     cmd = ("%s %s -e %s -d %s -i %s -o %s") % (parameters[binary], params, \
       str(parameters["e_value"]), parameters["db_file"], parameters["in_file"],\
       outFile)
 
-  elif "blast+" in parameters:
+  elif parameters["homology"][0] == "blast+":
     binary = parameters["blast+"][0]
     params = parameters[binary +"_params"]
     cmd = ("%s %s -evalue %s -db %s -query %s -out %s") % (parameters[binary], \
@@ -171,7 +172,7 @@ def hmmer(parameters, logFile):
   ## If we are ask to perform a HMM search using a Multiple Sequence Alignment
   ## as input rather than a single sequence, we need first to construct a HMM
   ## to perfom the search
-  if parameters["hmmer"][0] == "hmmsearch":
+  if parameters["homology"][0] == "hmmsearch" :
     if not "readal" in parameters or not "hmmbuild" in parameters:
       sys.exit(("ERROR: Check your CONFIG file to search whether 'readAl' and "
         + "'hmmbuild' are available"))
@@ -208,7 +209,7 @@ def hmmer(parameters, logFile):
     TEMPFILE.close()
 
   ## Generate command-line depending on HMMER specific program and parameters
-  binary = parameters["hmmer"][0]
+  binary = parameters["homology"][0]
   params = parameters["hmmer_params"]
 
   cmd = ("%s %s -E %s --tblout %s %s %s") % (parameters[binary], params, \
@@ -239,8 +240,9 @@ def filter_results(parameters, logFile):
 
   ## Get tag for the input/output file. It will depend on which method has been
   ## used to perform the homology seach
-  tag = "hmmer" if "hmmer" in parameters else "blast" if "legacy_blast" in \
-    parameters or "blast+" in parameters else ""
+  tag = "hmmer" if parameters["homology"][0] in ["phmmer", "jackhmmer", \
+    "hmmer_search"] else "blast" if parameters["homology"][0] in \
+    ["legacy_blast",  "blast+"] else ""
 
   ## Get input file
   inFile = ("%s.homology.%s.out") % (oFile, tag)
@@ -272,6 +274,7 @@ def filter_results(parameters, logFile):
     ## Detect the target sequence which is placed at different columns depending
     ## whether it is blast or hmmer package which generated the output
     target = parsed_line[0] if tag == "hmmer" else parsed_line[1]
+
     ## We also include the query sequence, it is only important for the BLAST-
     ## based search
     query = parsed_line[2] if tag == "hmmer" else parsed_line[0]
@@ -305,7 +308,7 @@ def filter_results(parameters, logFile):
       if float(line[4]) > e_value or float(line[7]) > e_value:
         continue
     elif tag == "blast":
-      covTarget = ((int(line[7]) - int(line[6]))+1)/float(sequences[line[0]][1])
+      covTarget = ((int(line[7]) - int(line[6]))+1)/float(sequences[line[0]][0])
       if covTarget < coverage or float(line[-2]) > e_value:
         continue
 
@@ -329,7 +332,7 @@ def filter_results(parameters, logFile):
     sequence_id = line[0] if tag == "hmmer" else line[1]
     selected_sequences.setdefault(sequence_id, sequences[sequence_id])
 
-  out = ["\t".join(map(lambda x: str(x).ljust(8), l)) for l in accepted_lines]
+  out = ["\t".join(map(lambda x: str(x).ljust(6), l)) for l in accepted_lines]
   print >> open(outFile, "w"), "\n".join(out)
 
   return selected_sequences
