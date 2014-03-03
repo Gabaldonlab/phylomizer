@@ -17,11 +17,97 @@ programs = { "muscle":"msl", "mafft":"mft", "dialign-tx":"dtx", "kalign":"kal" }
 ##  89: Problems aligning with KAlign
 ##  90: Problems aligning M-Coffee
 
+def alignment(parameters):
+
+  ## Get output folder/generic filename
+  oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
+
+  current_directory = os.getcwd()
+  ## Change current directory to the output folder. Any temporary file will be
+  ## generated therefore in this folder
+  os.chdir(parameters["out_directory"])
+
+  ## Set output filename and log file
+  if parameters["replace"] and parameters["step"] == 0:
+    logFile = open(oFile + ".log", "w")
+  else:
+    logFile = open(oFile + ".log", "a+")
+
+  start = datetime.datetime.now()
+  date = start.strftime("%H:%M:%S %m/%d/%y")
+  print >> logFile, ("###\n###\tSTEP\tMultiple Sequence Alignment\tSTART\t%s"
+    + "\n###") % (date)
+  logFile.flush()
+
+  ## Get some information such as number of input sequences and the presence of
+  ## selenocysteine/pyrrolysine residues
+  numSeqs, selenocys, pyrrolys = check_count_sequences(parameters["in_file"])
+
+
+
+
+  lrepl = False
+
+
+
+
+
+
+
+  print >> logFile, ("###\n###\tSTEP\tMultipple Sequence Alignment\tEND\t"
+    + "%s") % (date)
+  total = format_time((final - start).seconds if start else 0)
+  print >> logFile, ("###\tTOTAL Time\tMultiple Sequence Alignment\t%s"
+    + "\n###") % (total)
+  logFile.close()
+
+  ## Update the input file parameter and return the dictionary containing all
+  ## parameters. Those parameters may be used in other steps
+  parameters["in_file"] = outFile
+
+  ## Before returning to the main program, get back to the original working
+  ## directory
+  os.chdir(current_directory)
+
+  return parameters
+
+
+
+def check_count_sequences(in_file):
+  '''
+  Given a set of sequences, return how many there are as well as if any
+  selenocysteine or pyrrolysine is detected among the sequences
+  '''
+
+  numb_sequences, selenocys, pyrrolys = 0, False, False
+  for record in SeqIO.parse(in_file, "fasta"):
+    numb_sequences += 1
+
+    seq = str(record.seq).upper()
+    ## Detect any ocurrence of selenocysteine/pyrrolysine residues
+    if seq.count("U") != 0:
+      selenocys = True
+    if seq.count("O") != 0:
+      pyrrolys = True
+
+  return numb_sequences, selenocys, pyrrolys
+
+
+
+
+
+
+
+
+
+
+
+
+
 def AlignerPipeline(parameters):
 
   ## Get input folder and seed name
-  iFolder, iFile = os.path.split(parameters["inFile"])
-  iFolder = "." if iFolder == "" else iFolder
+
   ## Get output folder
   oFile = os.path.join(parameters["outDirec"], iFile.split(".")[0])
 
@@ -31,10 +117,6 @@ def AlignerPipeline(parameters):
   ## Start counting how much time will cost making an alignment
   start = datetime.datetime.now()
 
-  ## Get some information such as number of input sequences and the presence/
-  ## absence of selenocysteine residues
-  numSeqs, Sel = CheckSequences(parameters["inFile"])
-  lrepl = False
 
   ## Check whether alignments should be performed in forward or forward/reverse
   ## directions
@@ -607,20 +689,7 @@ def MetaAligningMCoffee(bin, inFile, outFile, logFile, pathFile, pars, replace):
 
   return True
 
-def CheckSequences(inFile):
-  '''
-  '''
 
-  nSeqs, selCys = 0, False
-  for line in [line for line in map(strip, open(inFile, "rU")) if line]:
-    ## Count how many sequences are in the input file
-    if line[0] == ">":
-      nSeqs += 1
-    ## Detect SelenoCysteines in any of the input sequences
-    elif line.upper().find("U") != -1:
-      selCys = True
-
-  return nSeqs, selCys
 
 def ChangeResiduesSeq(inFile, outFile, inLetter, outLetter, replace):
   '''

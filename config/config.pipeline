@@ -32,74 +32,102 @@ verbose           parameter	 1
 ## reconstruction - or phylogenetic tree reconstruction - when model selection
 ## is used. Available values are "protein", "prot2codon", "prot2nuc" or "nuc"
 
-residue_datatype  parameter  protein
+residue_datatype    parameter      protein
 
 ## HOMOLOGY SEARCH Step. General parameters, available modes and programs are
 ## defined here
 
 ## General parameters
-e_value           parameter	 1e-5
-coverage          parameter	 0.5
-## you can set 'no_limit' for avoiding selecting any specific number of hits during the search
-hits              parameter	 150
+e_value             parameter      1e-5
+coverage            parameter      0.5
+
+## you can set 'no_limit' for avoiding selecting any specific number of hits
+## during the search
+hits                parameter      150
 
 ## Protein Homology search
 
-homology           mode      legacy_blast
+homology            mode           legacy_blast
 
 ## Legacy NCBI BLAST
-legacy_blast      mode      blastpgp
-blastpgp          binary
-blastpgp_params   parameter	 -FT -b 5000 -a 2 -m8 -s -z 1000000 -t0
+legacy_blast        mode           blastpgp
+blastpgp            binary
+blastpgp_params     parameter      -FT -b 5000 -a 2 -m8 -s -z 1000000 -t0
 
 ## NCBI BLAST+
-blast+            mode      psiblast
-psiblast          binary
-psiblast_params   parameter	 -seg yes -num_alignments 5000 -num_threads 2
-psiblast_params   parameter	 -outfmt 6 -use_sw_tback -dbsize 1000000 -comp_based_stats 0
+blast+              mode           psiblast
+psiblast            binary
+psiblast_params     parameter      -seg yes -num_alignments 5000 -num_threads 2
+psiblast_params     parameter      -outfmt 6 -use_sw_tback -dbsize 1000000
+psiblast_params     parameter      -comp_based_stats 0
 
 ## HMMER Search based on a single query sequence rather than an alignment
-phmmer            binary
+phmmer              binary
 
 ## jackhmmer is an iterative search akin to PSI-BLAST
-jackhmmer         binary
+jackhmmer           binary
 
-## It's also possible to perform the homology search using an input alignment
-## for HMMSearch
-hmmbuild          binary
-hmmsearch         binary
+## It's also possible to perform the homology search using an input
+## alignment for HMMSearch
+hmmbuild            binary
+hmmsearch           binary
 
 ## HMMER parameters
-hmmer_params      parameter  --noali --nobias --nonull2 --cpu 2 -Z 1000000
-################################################################################
+hmmer_params        parameter      --noali --nobias --nonull2 --cpu 2 -Z 1000000
+
+## Multiple Sequence alignment
+
+## If more than one alignment program is set or/and alignments are generated in
+## forward/backward directions then the resulting alignments will be combined
+## using an special T-Coffee flavor: M-Coffee
+
+alignment           mode           muscle kalign mafft
+consensus           mode           m_coffee
+both_direction      parameter      True
+
+## General parameter for aligner programs. Sometimes rare aminoacids such as
+## selenocysteine 'U' or pyrrolysine 'O' cause programs to fail, therefore,
+## those rare amino-acids are substitute prior and after making the alignments
+in_letter           parameter	     U:B
+in_letter           parameter	     O:Z
+
+## Alignment programs
+muscle              binary         muscle3.8
+muscle_params       parameter
+
+mafft               binary
+mafft_params        parameter      --auto
+
+kalign              binary
+kalign_params       parameter      -f fasta
+
+dialign_tx          binary
+dialigntx_params    parameter      /usr/share/dialign-tx/
+
+t_coffee            binary
+tcoffee_params      parameter      -n_core 1 -output fasta
+
+## Meta-Alignment program
+## We currently only support M-Coffee as meta-aligner, we may add support to
+## other meta-aligner program in the future
+m_coffee            binary
+mcoffee_params      parameter      -n_core 1 -output fasta
+
+## Alignment trimming program
+## We currently only support trimAl as alignment trimming program. It implements
+## many of the different ways to trim an given alignment. It is also implements
+## an special mode for trimming consensus alignment generated after combining
+## more than one
+trimal              binary
+trimal_params       parameter	     -phylip -gt 0.1
+trimal_compare      parameter	     -ct 0.1667
 
 
-## Aligners
-#muscle            binary        muscle3.8
-#muscle_params     parameter
-#mafft             binary
-#mafft_params      parameter	    --auto
-#kalign            binary
-#kalign_params     parameter     -f fasta
-#
-### It's also possible to use DiAlign-TX
-## dialign-tx        binary
-## dialigntx_params  parameter	/usr/share/dialign-tx/
-#
-### MetaAligner
-#t_coffee          binary
-#mcoffee_params    parameter	-n_core 1 -output fasta
-#
-### General parameters for aligner programs. Sometimes rare aminoacids such as
-### selenocysteine 'U' or pyrrolysine 'O'
-#in_letter         parameter	 B
-#
-### Alignment manipulation & trimming programs
-readal            binary
-#trimal            binary
-#trimal_params     parameter	-phylip -gt 0.1
-#trimal_compare    parameter	-ct 0.1667
-#
+## Alignment and Sequences files manipulation
+readal              binary
+
+
+
 ### Phylogenetic tree reconstruction program
 #phyml             binary
 

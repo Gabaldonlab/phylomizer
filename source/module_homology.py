@@ -16,8 +16,16 @@ def homology(parameters):
   ## Get output folder/generic filename
   oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
 
+  current_directory = os.getcwd()
+  ## Change current directory to the output folder. Any temporary file will be
+  ## generated therefore in this folder
+  os.chdir(parameters["out_directory"])
+
   ## Set output filename and log file
-  logFile = open(oFile + ".log", "w" if parameters["replace"] else "a+")
+  if parameters["replace"] and parameters["step"] == 0:
+    logFile = open(oFile + ".log", "w")
+  else:
+    logFile = open(oFile + ".log", "a+")
 
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
@@ -49,8 +57,9 @@ def homology(parameters):
       if not lookForFile(filename):
         alternative = ("%s.00.%s%s") % (parameters["db_file"], dt, extension)
         if not lookForFile(alternative):
+          db_file = parameters["db_file"]
           sys.exit(("ERROR: Check your input TARGET SEQUENCES file '%s' has "
-            + "been formated using 'formatdb'") % (parameters["db_file"]))
+            + "been formated using 'formatdb'/'makeblastdb'") % (db_file))
 
     ## If the homology search step should be perfomed using BLAST, call the
     ## appropiate function
@@ -101,6 +110,10 @@ def homology(parameters):
   ## parameters. Those parameters may be used in other steps
   parameters["in_file"] = outFile
 
+  ## Before returning to the main program, get back to the original working
+  ## directory
+  os.chdir(current_directory)
+
   return parameters
 
 def blast(parameters, logFile):
@@ -148,6 +161,11 @@ def blast(parameters, logFile):
 
   if proc.wait() != 0:
     sys.exit(("ERROR: Execution failed: '%s'") % (parameters[binary]))
+
+  ## Remove any error file generated during the legacy_blast execution - We try
+  ## to delete this file only if it is empty
+  if not lookForFile("error.log"):
+    sp.call(("rm -f error.log"), shell = True)
 
 def hmmer(parameters, logFile):
   '''

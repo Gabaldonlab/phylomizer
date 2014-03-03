@@ -57,11 +57,14 @@ def readConfig(input_file):
     elif tag == "mode":
       args = args.split()
 
-    ## Assign to the current parameter, its arguments string
-    parameters[param] = args
+    ## Depending whether the current parameter exists, assign or add the current
+    ## arguments. On this way it is possible to have multi-line parameters.
+    if param in parameters:
+      parameters[param] = " ".join([parameters[param], args])
+    else:
+      parameters[param] = args
 
   return parameters
-
 
 def lookForProgram(binary):
   ''' Return if a given binary is on the file system

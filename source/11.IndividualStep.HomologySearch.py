@@ -34,6 +34,10 @@ if __name__ == "__main__":
   parameters = {}
   parameters.setdefault("replace", args.replace)
 
+  ## Assign which step is being executed. It is useful to know whether the log
+  ## file should be replaced or not - even when the flag "replace" is set
+  parameters.setdefault("step", 0)
+
   ## Check parameters related to files / directories
   if not lookForFile(args.inFile):
     sys.exit(("ERROR: Check input QUERY SEQUENCE/s file '%s'") % (args.inFile))
@@ -65,6 +69,17 @@ if __name__ == "__main__":
 
   if not "hits" in parameters or int(parameters["hits"]) < 1:
     sys.exit(("ERROR: Check your 'hits' upper limit value"))
+
+  ## Show which parameters has been set-up
+  output = [("| %-15s\t| %s") % (("'%s'") % (key), value) for key,value in \
+    sorted(parameters.iteritems())]
+  maxLen = sorted([len(l) for l in output])[-1] + 12
+
+  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
+  print >> sys.stderr, ("#%s#") % ("Pipeline Configuration".center(maxLen))
+  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
+  print >> sys.stderr, ("%s") % ("\n".join(output))
+  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
 
   ## Launch the whole homology process
   homology(parameters)
