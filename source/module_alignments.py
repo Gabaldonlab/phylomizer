@@ -1,21 +1,45 @@
-import sys, os, subprocess as sp
-from operator import itemgetter
-from string import strip
-from time import sleep
-from utils import *
+import os
+import sys
+import tempfile
 import datetime
+import subprocess as sp
 
-programs = { "muscle":"msl", "mafft":"mft", "dialign-tx":"dtx", "kalign":"kal" }
+from Bio import SeqIO
+from time import sleep
+from hashlib import md5
+from string import strip
+from socket import getfqdn
+from operator import itemgetter
+from module_utils import lookForDirectory, lookForFile, splitSequence, \
+  format_time
+
+file_extension = {
+  "prank":          "prk",
+  "mafft":          "mft",
+  "kalign":         "kal",
+  "muscle":         "msl",
+  "t_coffee":       "tce",
+  "dialign-tx":     "dtx",
+  "clustal_omega":  "clo",
+}
 
 ## Exit code meanings
 ##  80: Not enough sequences
 ##  81: Problems making format conversions/reversion sequences
 ##  82: Problems trimming input alignment
-##  86: Problems aligning with MUSCLE
-##  87: Problems aligning with MAFFT
-##  88: Problems aligning with DiAlign-TX
-##  89: Problems aligning with KAlign
-##  90: Problems aligning M-Coffee
+exit_codes = {
+  "prank":          92,    ##  92: Problems aligning with PRANK
+  "mafft":          87,    ##  87: Problems aligning with MAFFT
+  "kalign":         89,    ##  89: Problems aligning with KAlign
+  "muscle":         86,    ##  86: Problems aligning with MUSCLE
+  "t_coffee":       90,    ##  90: Problems using T-Coffee and its flavors
+  "m_coffee":       90,
+  "dialign-tx":     88,    ##  88: Problems aligning with DiAlign-TX
+  "clustal_omega":  91,    ##  91: Problems aligning with Clustal-Omega
+
+  "generic":        95,    ##  95: Problems aligning with a generic/unsupported
+                           ##      program
+}
 
 def alignment(parameters):
 
@@ -39,14 +63,141 @@ def alignment(parameters):
     + "\n###") % (date)
   logFile.flush()
 
+  ## Get which program/s will be used to align the input sequences. Check such
+  ## program/s are listed among the available binaries
+  if not "alignment" in parameters:
+    sys.exit("ERROR: Check your configuration file. There is no definition for "
+      + "the ALIGNMENT step")
+
+  for program in parameters["alignment"]:
+    if not program in parameters:
+      sys.exit(("ERROR: Selected program '%s' is not available accordding to "
+        "the configuration file") % (program))
+
+  ## Check whether "readAl" is available or not. It is useful for sequences
+  ## manipulation independently of the input format.
+  if not "readal" in parameters:
+    sys.exit("ERROR: Check your CONFIG file. 'readAl' is not available")
+
+  ## Evaluate whether input sequences will be aligned following one direction,
+  ## forward - left to right - or both directions meaning forward/reverse
+  if type(parameters["both_direction"]) == "str":
+    parameters["both_direction"] = parameters["both_direction"].lower() =="true"
+
   ## Get some information such as number of input sequences and the presence of
   ## selenocysteine/pyrrolysine residues
   numSeqs, selenocys, pyrrolys = check_count_sequences(parameters["in_file"])
 
+  ## Finish when there are not enough sequences to make an alignment
+  if numSeqs < 3:
+    print >> logFile, ("### INFO: It is necessary, at least, 3 sequences to "
+      + "to reconstruct an alignment (%d)") % (numSeqs)
+
+  ## Otherwise, process the input sequence, substitute rare amino-acids and
+  ## reverse input sequences when neccesary
+  else:
+
+    ## Reverse input sequences if needed it
+    if parameters["both_direction"]:
+
+      ## If get an positive answer means, the reverse sequence file has been
+      ## generated and therefore any downstream file should be over-written
+      if reverseSequences(parameters, logFile):
+        parameters["replace"] = True
+
+    ## Substitute rare amino-acids if needed it
+    if selenocys or pyrrolys:
+
+      out_file = ("%s.seqs.rare_aminoacids") % (oFile)
+
+      ## If the output file has been generated, over-write, if any, downstream
+      ## files
+      if replaceRareAminoAcids(parameters["in_file"], out_file, \
+        parameters["replace"], logFile, parameters["in_letter"]):
+        parameters["replace"] = True
+
+      ## If there is a reverse file, replace also the rare amino-acids in that
+      ## file
+      if parameters["both_direction"]:
+
+        in_file = ("%s.seqs.reverse") % (oFile)
+        out_file = ("%s.seqs.rare_aminoacids.reverse") % (oFile)
+
+        ## Replace any downstream file is the current one is generated again
+        if replaceRareAminoAcids(in_file, out_file, parameters["replace"], \
+          logFile, parameters["in_letter"]):
+          parameters["replace"] = True
+
+    ## Set in which directions alignments will be reconstructed
+    directions = ["forward"]
+    if parameters["both_direction"]:
+      directions.append("reverse")
+
+    ## Once all required sequence files has been set-up, proceed to build the
+    ## alignments itself.
+    for prog in parameters["alignment"]:
+
+      ## Get binary as well as any input parameters for each aligner and the
+      ## output file extension
+      binary = parameters[prog]
+
+      key = ("%s_params") % (prog)
+      params = parameters[key] if key in parameters else ""
+
+      altern_ext = ("%s%s") % (prog[:2], prog[-1])
+      extension = file_extension[prog] if prog in file_extension else altern_ext
+
+      ## Generate as many alignments as needed
+      for direc in directions:
+
+        ## Set the input file depending on the presence of rare amino-acids
+        if direc == "forward":
+          in_file = ("%s.seqs.rare_aminoacids") % (oFile) if selenocys \
+            or pyrrolys else parameters["in_file"]
+        else:
+          in_file = ("%s.seqs.rare_aminoacids.reverse") % (oFile) if selenocys \
+            or pyrrolys else ("%s.seqs.reverse") % (oFile)
+
+        out_file = ("%s.alg.%s%s.%s") % (oFile, "no_rare_aa." if selenocys \
+          or pyrrolys else "", direc, extension)
+
+
+        perfomAlignment(prog, binary, params, in_file, out_file, logFile, \
+          parameters["replace"])
+
+  #~ ## Align input sequences depending on the selected programs
+  #~ ## Muscle
+  #~ if "muscle" in parameters["single_program"]:
+#~
+    #~ ## Alignment will be made in forward/reverse direction
+    #~ if parameters["both_direction"] == True:
+      #~ output =  ("%s.alg") % (oFile)
+      #~ output += ("%s.reverse.msl") % (".noselcys" if Sel == True else "")
+#~
+      #~ lrepl = AligningMuscle(parameters["muscle"], revCurrentInFile, output,
+        #~ oFile + ".log", parameters["muscle_params"], parameters["replace"])
+#~
+      #~ if Sel == True:
+        #~ realOutput = ("%s.alg.reverse.msl") % (oFile)
+        #~ lrepl = ChangeResiduesSeq(output, realOutput, parameters["in_letter"],
+          #~ "U", parameters["replace"])
+#~
+      #~ lrepl = GettingReverse(parameters["readal"], oFile + '.alg.reverse.msl', \
+        #~ oFile + ".alg.reverse.forw.msl", oFile + ".log", parameters["replace"])
+#~
+    #~ output =  ("%s.alg") % (oFile)
+    #~ output += ("%s.forward.msl") % (".noselcys" if Sel == True else "")
+#~
+    #~ lrepl = AligningMuscle(parameters["muscle"], currentInFile, output, \
+      #~ oFile + ".log", parameters["muscle_params"], parameters["replace"])
+#~
+    #~ if Sel == True:
+      #~ realOutput = ("%s.alg.forward.msl") % (oFile)
+      #~ lrepl = ChangeResiduesSeq(output, realOutput, \
+        #~ parameters["in_letter"], "U", parameters["replace"])
 
 
 
-  lrepl = False
 
 
 
@@ -54,6 +205,22 @@ def alignment(parameters):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  final = datetime.datetime.now()
   print >> logFile, ("###\n###\tSTEP\tMultipple Sequence Alignment\tEND\t"
     + "%s") % (date)
   total = format_time((final - start).seconds if start else 0)
@@ -63,15 +230,18 @@ def alignment(parameters):
 
   ## Update the input file parameter and return the dictionary containing all
   ## parameters. Those parameters may be used in other steps
-  parameters["in_file"] = outFile
+  #~ parameters["in_file"] = outFile
 
   ## Before returning to the main program, get back to the original working
   ## directory
   os.chdir(current_directory)
 
+  ## Finish the execution just before going back to the main program since there
+  ## are not enough sequences to build any alignment
+  if numSeqs < 3:
+    sys.exit(80)
+
   return parameters
-
-
 
 def check_count_sequences(in_file):
   '''
@@ -91,6 +261,157 @@ def check_count_sequences(in_file):
       pyrrolys = True
 
   return numb_sequences, selenocys, pyrrolys
+
+def reverseSequences(parameters, logFile):
+  '''
+  Reverse the input sequences using readAl for that purpose
+  '''
+
+  ## Define the output file
+  out_file = os.path.join(parameters["out_directory"], parameters["prefix"])
+  out_file += (".seqs.reverse")
+
+  if lookForFile(out_file) and not parameters["replace"]:
+    return False
+
+  ## Define the command-line for getting the sequences reverse independently of
+  ## being aligned or not and of the input format
+  bin = parameters["readal"]
+  cmd = ("%s -in %s -out %s -reverse") % (bin, parameters["in_file"], out_file)
+
+  ## Record the time and precise command-line
+  name = getfqdn()
+  start = datetime.datetime.now()
+  date = start.strftime("%H:%M:%S %m/%d/%y")
+
+  print >> logFile, ("###\n###\treadAl - reverse seqs\t%s") % (date)
+  print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
+  logFile.flush()
+
+  try:
+    proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
+  except OSError, e:
+    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
+    sys.exit(81)
+
+  if proc.wait() != 0:
+    print >> sys.stderr, "ERROR: Execution failed: readAl"
+    sys.exit(81)
+
+  final = datetime.datetime.now()
+  total = format_time((final - start).seconds if start else 0)
+  print >> logFile, ("###\tTime\t%s\n###") % (total)
+  logFile.flush()
+
+  return True
+
+def replaceRareAminoAcids(in_file, out_file, replace, logFile, combinations, \
+  back = False):
+  '''
+  Replace rare amino-acids occurrence by wildcards, and vice-versa. It will only
+  works with input files in FASTA format
+  '''
+
+  ## Check whether the output file already exists. If it is not set to replace
+  ## it, just return to the calling function
+  if lookForFile(out_file) and not replace:
+    return False
+
+  subs = {}
+  for comb in map(strip, combinations.split()):
+    ## Depending on the direction of the conversion, make it on one way or in
+    ## the way around
+    src, dst = comb.split(":")[::-1] if back else comb.split(":")
+    subs.setdefault(src, dst)
+
+  ## Record some stats about which amino-acids and how many times they have been
+  ## detected
+  stats = dict([(letter, 0) for letter in subs])
+
+  ## Record the time and precise command-line
+  name = getfqdn()
+  start = datetime.datetime.now()
+  date = start.strftime("%H:%M:%S %m/%d/%y")
+
+  print >> logFile, ("###\n###\t[%s]\tSubstituting Rare Amino-Acids\t%s") % \
+    (name, date)
+  logFile.flush()
+
+  oFile = open(out_file, "w")
+  for record in SeqIO.parse(in_file, "fasta"):
+    seq = str(record.seq)
+    for letter in subs:
+      seq = seq.replace(letter, subs[letter])
+      stats[letter] += seq.count(subs[letter])
+    print >> oFile, (">%s\n%s") % (record.id, splitSequence(seq))
+  oFile.close()
+
+  output = "|\t".join([("'%s' > '%s'\tfreq: %d") % (aa, subs[aa], stats[aa]) \
+    for aa in stats if stats[aa] > 0])
+
+  print >> logFile, ("###\tReport\t%s") % (output)
+  final = datetime.datetime.now()
+  total = format_time((final - start).seconds if start else 0)
+  print >> logFile, ("###\n###\tTime\t%s\n###") % (total)
+  logFile.flush()
+
+  return True
+
+
+
+def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
+  replace):
+
+  '''
+  Function to format the command-line of different multiple sequence alignment
+  programs and execute such command lines. It is also support a generic call
+  for those programs which has no specific support in the pipeline
+  '''
+
+  ## Check whether the output file already exists. If it is not set to replace
+  ## it, just return to the calling function
+  if lookForFile(out_file) and not replace:
+    return False
+
+  if label == "muscle":
+    cmd = ("%s %s -in %s -out %s") % (binary, parameters, in_file, out_file)
+  else:
+    return False
+
+  ## Record the time and precise command-line
+  name = getfqdn()
+  start = datetime.datetime.now()
+  date = start.strftime("%H:%M:%S %m/%d/%y")
+
+  print >> logFile, ("###\n###\t%s - Alignment\t%s") % (label.upper(), date)
+  print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
+  logFile.flush()
+
+  try:
+    proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
+  except OSError, e:
+    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
+    sys.exit(exit_codes[label])
+
+  if proc.wait() != 0:
+    print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
+    sys.exit(exit_codes[label])
+
+  final = datetime.datetime.now()
+  total = format_time((final - start).seconds if start else 0)
+  print >> logFile, ("###\tTime\t%s\n###") % (total)
+  logFile.flush()
+
+  return True
+
+
+
+
+
+
+
+
+
 
 
 
@@ -118,38 +439,11 @@ def AlignerPipeline(parameters):
   start = datetime.datetime.now()
 
 
-  ## Check whether alignments should be performed in forward or forward/reverse
-  ## directions
-  if not "both_direction" in parameters:
-    parameters["both_direction"] = True
 
-  elif type(parameters["both_direction"]) == "str":
-    if parameters["both_direction"].lower() == "false":
-      parameters["both_direction"] = False
 
-  ## Check whether how many programs should be used to make the alignment
-  ## reconstruction step. Right now we support up to 4 programs:
-  ## Muscle, Mafft, DiAlign-TX & KAlign2
-  if not "single_program" in parameters:
-    parameters["single_program"] = []
-    for param in parameters:
-      if param.lower() in programs:
-        parameters["single_program"].append(param.lower())
 
-  ## In case just one program is selected, get which one among those availables
-  else:
-    if not parameters["single_program"].lower() in programs:
-      raise NameError(("Program not available '%s'") % parameters["single_program"])
-    parameters["single_program"] = [parameters["single_program"].lower()]
 
-  ## Finish when there are not enough sequences to make an alignment
-  if numSeqs < 3 and parameters["verbose"] > 0:
-    date = start.strftime("%H:%M:%S %m/%d/%y")
-    lgFile = open(oFile + ".log", "a+")
-    print >> lgFile, ("### %s\n### INFO: It is necessary, "
-      + "at least, 3 sequences (%d)") % (date, numSeqs)
-    lgFile.close()
-    sys.exit(80)
+
 
   ## Predefined input file/s. They may be changed depending on the presence/
   ## absence of selenocysteines
@@ -160,10 +454,10 @@ def AlignerPipeline(parameters):
     ## Get reversed input sequences
     lrepl = GettingReverse(parameters["readal"], parameters["inFile"],
       revCurrentInFile, oFile + ".log", parameters["replace"])
+#~
+    #~ ## If the file has been generated "de novo", regenerate the rest of files
+    #~ if lrepl:
 
-    ## If the file has been generated "de novo", regenerate the rest of files
-    if lrepl:
-      parameters["replace"] = True
 
   ## In those cases where a Selenocysteines have been detected, change them by
   ## wildcard characters
@@ -189,36 +483,13 @@ def AlignerPipeline(parameters):
         oFile + ".seqs.noselcys.reverse", oFile + ".log", parameters["replace"])
       revCurrentInFile = ("%s.seqs.noselcys.reverse") % (oFile)
 
-  ## Align input sequences depending on the selected programs
-  ## Muscle
-  if "muscle" in parameters["single_program"]:
 
-    ## Alignment will be made in forward/reverse direction
-    if parameters["both_direction"] == True:
-      output =  ("%s.alg") % (oFile)
-      output += ("%s.reverse.msl") % (".noselcys" if Sel == True else "")
 
-      lrepl = AligningMuscle(parameters["muscle"], revCurrentInFile, output,
-        oFile + ".log", parameters["muscle_params"], parameters["replace"])
 
-      if Sel == True:
-        realOutput = ("%s.alg.reverse.msl") % (oFile)
-        lrepl = ChangeResiduesSeq(output, realOutput, parameters["in_letter"],
-          "U", parameters["replace"])
 
-      lrepl = GettingReverse(parameters["readal"], oFile + '.alg.reverse.msl', \
-        oFile + ".alg.reverse.forw.msl", oFile + ".log", parameters["replace"])
 
-    output =  ("%s.alg") % (oFile)
-    output += ("%s.forward.msl") % (".noselcys" if Sel == True else "")
 
-    lrepl = AligningMuscle(parameters["muscle"], currentInFile, output, \
-      oFile + ".log", parameters["muscle_params"], parameters["replace"])
 
-    if Sel == True:
-      realOutput = ("%s.alg.forward.msl") % (oFile)
-      lrepl = ChangeResiduesSeq(output, realOutput, \
-        parameters["in_letter"], "U", parameters["replace"])
 
   ## KAlign
   if "kalign" in parameters["single_program"]:
@@ -375,37 +646,7 @@ def AlignerPipeline(parameters):
 
   return oFile + ".alg.clean"
 
-def GettingReverse(bin, inFile, outFile, logFile, replace):
-  '''
-  Get the reverse alignment using readal for that
-  '''
 
-  if lookForFile(outFile) and not replace:
-    return
-  lgFile = open(logFile, "a+ ") if logFile != "" else None
-
-  ## Construct command-line call and print it onto log file
-  cmd = ("%s -in %s -out %s -reverse") % (bin, inFile, outFile)
-
-  start = datetime.datetime.now()
-  date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> lgFile, ("###\n### readAl - reverse seqs\n### %s\n### %s\n###") % \
-    (date, cmd)
-  lgFile.flush()
-
-  try:
-    proc = sp.Popen(cmd, shell = True, stderr = lgFile, stdout = lgFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
-    sys.exit(81)
-  if proc.wait() != 0:
-    print >> sys.stderr, "ERROR: Execution failed: readAl"
-    sys.exit(81)
-
-  final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
-  print >> lgFile, ("###\n### Total time\t%s\n###") % (total)
-  lgFile.close()
 
 def convertAlignment(bin, inFile, outFile, outFormat, logFile, replace):
   '''
@@ -484,42 +725,7 @@ def trimmingAlignment(bin, inFile, outFile, logFile, forceSelection,
 
   return True
 
-def AligningMuscle(bin, inFile, outFile, logFile, parameters, replace):
-  '''
-  '''
 
-  if lookForFile(outFile) and not replace:
-    return False;
-  lgFile = open(logFile, "a+ ") if logFile != "" else None
-  lgFile.flush()
-
-  cmd = ("%s %s -in %s -out %s") % (bin, parameters, inFile, outFile)
-  start = datetime.datetime.now()
-  date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> lgFile, ("###\n### MUSCLE\n### %s\n### %s\n###") % (date, cmd)
-  lgFile.flush()
-
-  try:
-    proc = sp.Popen(cmd, shell = True, stderr = lgFile, stdout = lgFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
-    sys.exit(86)
-
-  if proc.wait() != 0:
-    print >> sys.stderr, "ERROR: Execution failed: Muscle"
-    sys.exit(86)
-
-  if not CheckGeneratedAlignment(inFile, outFile):
-    print >> sys.stderr, "ERROR: Execution failed: Muscle - Alignment Check"
-    sp.call(("rm -f %s") % (outFile), shell = True)
-    sys.exit(86)
-
-  final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
-  print >> lgFile, ("###\n### Total time\t%s\n###") % (total)
-  lgFile.close()
-
-  return True
 
 def AligningKAlign(bin, inFile, outFile, logFile, parameters, replace):
   '''

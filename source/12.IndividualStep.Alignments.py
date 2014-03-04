@@ -2,7 +2,7 @@
 import os
 import sys
 import argparse
-from module_alignment import alignment
+from module_alignments import alignment
 from module_utils import readConfig, lookForDirectory, lookForFile
 
 if __name__ == "__main__":
@@ -54,6 +54,11 @@ if __name__ == "__main__":
 
   ## Read the other parameters from the input config file
   parameters.update(readConfig(parameters["config_file"]))
+
+  ## Check whether alignment will be reconstructed in one or two directions, i.e
+  ## head and tails.
+  if not "both_direction" in parameters:
+    parameters["both_direction"] = True
 
   ## Show which parameters has been set-up
   output = [("| %-15s\t| %s") % (("'%s'") % (key), value) for key,value in \

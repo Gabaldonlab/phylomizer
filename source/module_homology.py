@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 import os
 import sys
 import tempfile
@@ -7,6 +5,7 @@ import datetime
 import subprocess as sp
 from Bio import SeqIO
 from hashlib import md5
+from socket import getfqdn
 from string import strip, capitalize, ljust
 from module_utils import lookForDirectory, lookForFile, splitSequence, \
   parseComments, format_time, sort_blast_hits, sort_hmmer_hits
@@ -151,7 +150,8 @@ def blast(parameters, logFile):
       params, str(parameters["e_value"]), parameters["db_file"], \
       parameters["in_file"], outFile)
 
-  print >> logFile, ("###\n###\tCommand-line\t%s\n###\n") % (cmd)
+  name = getfqdn()
+  print >> logFile, ("###\n###\t[%s]\tCommand-line\t%s\n###\n") % (name, cmd)
   logFile.flush()
 
   try:
@@ -211,7 +211,8 @@ def hmmer(parameters, logFile):
     cmd = ("%s --informat afa %s %s %s") % (parameters["hmmbuild"], dt, hmmFile,
       TEMPFILE.name)
 
-    print >> logFile, ("###\n###\tCommand-line\t%s\n###\n") % (cmd)
+    name = getfqdn()
+    print >> logFile, ("###\n###\t[%s]\tCommand-line\t%s\n###\n") % (name, cmd)
     logFile.flush()
 
     try:
@@ -234,7 +235,8 @@ def hmmer(parameters, logFile):
     str(parameters["e_value"]), outFile, parameters["in_file"], \
     parameters["db_file"])
 
-  print >> logFile, ("###\n###\tCommand-line\t%s\n###\n") % (cmd)
+  name = getfqdn()
+  print >> logFile, ("###\n###\t[%s]\tCommand-line\t%s\n###\n") % (name, cmd)
   logFile.flush()
 
   try:

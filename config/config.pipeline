@@ -101,17 +101,17 @@ mafft_params        parameter      --auto
 kalign              binary
 kalign_params       parameter      -f fasta
 
-dialign_tx          binary
-dialigntx_params    parameter      /usr/share/dialign-tx/
+# dialign_tx          binary
+# dialigntx_params    parameter      /usr/share/dialign-tx/
 
-t_coffee            binary
-tcoffee_params      parameter      -n_core 1 -output fasta
+# t_coffee            binary
+# tcoffee_params      parameter      -n_core 1 -output fasta
 
 ## Meta-Alignment program
 ## We currently only support M-Coffee as meta-aligner, we may add support to
 ## other meta-aligner program in the future
-m_coffee            binary
-mcoffee_params      parameter      -n_core 1 -output fasta
+# m_coffee            binary
+# mcoffee_params      parameter      -n_core 1 -output fasta
 
 ## Alignment trimming program
 ## We currently only support trimAl as alignment trimming program. It implements

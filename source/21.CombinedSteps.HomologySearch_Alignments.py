@@ -3,6 +3,7 @@ import os
 import sys
 import argparse
 from module_homology import homology
+from module_alignments import alignment
 from module_utils import readConfig, lookForDirectory, lookForFile
 
 if __name__ == "__main__":
@@ -69,6 +70,11 @@ if __name__ == "__main__":
 
   if not "hits" in parameters or int(parameters["hits"]) < 1:
     sys.exit(("ERROR: Check your 'hits' upper limit value"))
+
+  ## Check whether alignment will be reconstructed in one or two directions, i.e
+  ## head and tails.
+  if not "both_direction" in parameters:
+    parameters["both_direction"] = True
 
   ## Show which parameters has been set-up
   output = [("| %-15s\t| %s") % (("'%s'") % (key), value) for key,value in \

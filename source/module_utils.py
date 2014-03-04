@@ -48,7 +48,7 @@ def readConfig(input_file):
         sys.exit(("ERROR: Check your input file '%s'") % (args))
 
     ## Check directories exist and are writable
-    elif tag == "file":
+    elif tag == "directory":
       if not lookForDirectory(args):
         sys.exit(("ERROR: Check your input directory '%s'") % (args))
 
