@@ -18,8 +18,9 @@ file_extension = {
   "mafft":          "mft",
   "kalign":         "kal",
   "muscle":         "msl",
+  "clustalw":       "clw",
   "t_coffee":       "tce",
-  "dialign-tx":     "dtx",
+  "dialign_tx":     "dtx",
   "clustal_omega":  "clo",
 }
 
@@ -27,6 +28,7 @@ file_extension = {
 ##  80: Not enough sequences
 ##  81: Problems making format conversions/reversion sequences
 ##  82: Problems trimming input alignment
+
 exit_codes = {
   "prank":          92,    ##  92: Problems aligning with PRANK
   "mafft":          87,    ##  87: Problems aligning with MAFFT
@@ -34,8 +36,9 @@ exit_codes = {
   "muscle":         86,    ##  86: Problems aligning with MUSCLE
   "t_coffee":       90,    ##  90: Problems using T-Coffee and its flavors
   "m_coffee":       90,
-  "dialign-tx":     88,    ##  88: Problems aligning with DiAlign-TX
-  "clustal_omega":  91,    ##  91: Problems aligning with Clustal-Omega
+  "dialign_tx":     88,    ##  88: Problems aligning with DiAlign-TX
+  "clustalw":       91,    ##  91: Problems aligning with Clustal-W
+  "clustal_omega":  92,    ##  92: Problems aligning with Clustal-Omega
 
   "generic":        95,    ##  95: Problems aligning with a generic/unsupported
                            ##      program
@@ -373,8 +376,15 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
   if lookForFile(out_file) and not replace:
     return False
 
-  if label == "muscle":
+  if label in ["muscle", "kalign"]:
     cmd = ("%s %s -in %s -out %s") % (binary, parameters, in_file, out_file)
+
+  elif label in ["mafft"]:
+    cmd = ("%s %s %s > %s") % (binary, parameters, inFile, outFile)
+
+  elif label in ["dialign_tx"]:
+    cmd = ("%s %s %s %s") % (binary, parameters, inFile, outFile)
+
   else:
     return False
 
@@ -727,117 +737,7 @@ def trimmingAlignment(bin, inFile, outFile, logFile, forceSelection,
 
 
 
-def AligningKAlign(bin, inFile, outFile, logFile, parameters, replace):
-  '''
-  '''
 
-  if lookForFile(outFile) and not replace:
-    return False;
-  lgFile = open(logFile, "a+ ") if logFile != "" else None
-
-  cmd = ("%s %s -in %s -out %s") % (bin, parameters, inFile, outFile)
-  start = datetime.datetime.now()
-  date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> lgFile, ("###\n### KAlign\n### %s\n### %s\n###") % (date, cmd)
-  lgFile.flush()
-
-  try:
-    proc = sp.Popen(cmd, shell = True, stderr = lgFile, stdout = lgFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
-    sys.exit(89)
-
-  if proc.wait() != 0:
-    print >> sys.stderr, "ERROR: Execution failed: KAlign"
-    sys.exit(89)
-
-  ## Check whether output alignment have the same number of sequences/residues
-  ## than the input unaligned sequences file
-  if not CheckGeneratedAlignment(inFile, outFile):
-    print >> sys.stderr, "ERROR: Execution failed: KAlign - Alignment Check"
-    sp.call(("rm -f %s") % (outFile), shell = True)
-    sys.exit(89)
-
-  final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
-  print >> lgFile, ("###\n### Total time\t%s\n###") % (total)
-  lgFile.close()
-
-  return True
-
-def AligningMafft(bin, inFile, outFile, logFile, parameters, replace):
-  '''
-  '''
-
-  if lookForFile(outFile) and not replace:
-    return False
-  lgFile = open(logFile, "a+ ") if logFile != "" else None
-
-  cmd = ("%s %s %s > %s") % (bin, parameters, inFile, outFile)
-  start = datetime.datetime.now()
-  date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> lgFile, ("###\n### MAFFT\n### %s\n### %s\n###") % (date, cmd)
-  lgFile.flush()
-
-  try:
-    proc = sp.Popen(cmd, shell = True, stderr = lgFile, stdout = lgFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
-    sys.exit(87)
-
-  if proc.wait() != 0:
-    print >> sys.stderr, "ERROR: Execution failed: MAFFT"
-    sys.exit(87)
-
-  ## Check whether output alignment have the same number of sequences/residues
-  ## than the input unaligned sequences file
-  if not CheckGeneratedAlignment(inFile, outFile):
-    print >> sys.stderr, "ERROR: Execution failed: MAFFT - Alignment Check"
-    sp.call(("rm -f %s") % (outFile), shell = True)
-    sys.exit(87)
-
-  final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
-  print >> lgFile, ("###\n### Total time\t%s\n###") % (total)
-  lgFile.close()
-
-  return True
-
-def AligningDialgnTX(bin, inFile, outFile, logFile, parameters, replace):
-  '''
-  '''
-
-  if lookForFile(outFile) and not replace:
-    return False
-  lgFile = open(logFile, "a+ ") if logFile != "" else None
-
-  cmd = ("%s %s %s %s") % (bin, parameters, inFile, outFile)
-  start = datetime.datetime.now()
-  date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> lgFile, ("###\n### DiAlign-TX\n### %s\n### %s\n###") % (date, cmd)
-  lgFile.flush()
-
-  try:
-    proc = sp.Popen(cmd, shell = True, stderr = lgFile, stdout = lgFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
-    sys.exit(88)
-
-  if proc.wait() != 0:
-    print >> sys.stderr, "ERROR: Execution failed: DiAlign-TX"
-    sys.exit(88)
-
-  if not CheckGeneratedAlignment(inFile, outFile):
-    print >> sys.stderr, "ERROR: Execution failed: DiAlign-TX - Alignment Check"
-    sp.call(("rm -f %s") % (outFile), shell = True)
-    sys.exit(88)
-
-  final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
-  print >> lgFile, ("###\n### Total time\t%s\n###") % (total)
-  lgFile.close()
-
-  return True
 
 def MetaAligningMCoffee(bin, inFile, outFile, logFile, pathFile, pars, replace):
   '''
@@ -895,24 +795,6 @@ def MetaAligningMCoffee(bin, inFile, outFile, logFile, pathFile, pars, replace):
 
   return True
 
-
-
-def ChangeResiduesSeq(inFile, outFile, inLetter, outLetter, replace):
-  '''
-  '''
-
-  if lookForFile(outFile) and not replace:
-    return False;
-
-  oFile = open(outFile, "w")
-  for line in [line for line in map(strip, open(inFile, "rU")) if line]:
-    if line[0] == ">":
-      print >> oFile, line
-    else:
-      print >> oFile, line.replace(inLetter, outLetter)
-  oFile.close()
-
-  return True
 
 def CheckGeneratedAlignment(inSeqsFile, outAligFile):
   '''
