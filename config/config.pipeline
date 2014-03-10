@@ -101,8 +101,14 @@ mafft_params        parameter      --auto
 kalign              binary
 kalign_params       parameter      -f fasta
 
-# dialign_tx          binary
-# dialigntx_params    parameter      /usr/share/dialign-tx/
+clustal_omega        binary
+clustal_omega-params parameter     --auto
+
+clustalw            binary
+clustalw-params     parameter     -ALIGN
+
+dialign-tx          binary
+dialign-tx_params   parameter      ~/git/phylomizer/config
 
 # t_coffee            binary
 # tcoffee_params      parameter      -n_core 1 -output fasta

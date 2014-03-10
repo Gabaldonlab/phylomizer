@@ -201,28 +201,6 @@ def alignment(parameters):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   final = datetime.datetime.now()
   print >> logFile, ("###\n###\tSTEP\tMultipple Sequence Alignment\tEND\t"
     + "%s") % (date)
@@ -360,8 +338,6 @@ def replaceRareAminoAcids(in_file, out_file, replace, logFile, combinations, \
 
   return True
 
-
-
 def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
   replace):
 
@@ -379,11 +355,15 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
   if label in ["muscle", "kalign"]:
     cmd = ("%s %s -in %s -out %s") % (binary, parameters, in_file, out_file)
 
-  elif label in ["mafft"]:
-    cmd = ("%s %s %s > %s") % (binary, parameters, inFile, outFile)
+  elif label in ["clustalw"]:
+    cmd = ("%s %s -INFILE=%s -OUTFILE=%s") % (binary, parameters, inFile, \
+      outFile)
 
-  elif label in ["dialign_tx"]:
-    cmd = ("%s %s %s %s") % (binary, parameters, inFile, outFile)
+  elif label in ["clustal_omega"]:
+    cmd = ("%s %s --in %s --out %s") % (binary, parameters, inFile, outFile)
+
+  elif label in ["mafft", "dialign_tx"]:
+    cmd = ("%s %s %s > %s") % (binary, parameters, inFile, outFile)
 
   else:
     return False
@@ -412,6 +392,51 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
   print >> logFile, ("###\tTime\t%s\n###") % (total)
   logFile.flush()
 
+  ## Check whether the output alignment has been already generated.
+  ## In case something goes wrong, remove the output file and finish the
+  ## current execution
+  if not checkAlignment(inFile, outFile):
+    print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
+    sp.call(("rm -f %s") % (outFile), shell = True)
+    sys.exit(exit_codes[label])
+
+  return True
+
+def checkAlignment(ifile_1, ifile_2, iformat_1 = "fasta", iformat_2 = "fasta"):
+  '''
+  Read two giving input files and check both contain the same sequences and
+  the same input strings
+  '''
+
+  ## We introduce a delay to ensure data is already written in the disk.
+  ## With high-computing facilities, sometimes there are some problems of
+  ## writing to disk the already computed results
+  sleep(10)
+
+  ## Read both input files
+  inSeqs_1 = {}
+  for record in SeqIO.parse(ifile_1, iformat_1):
+    if not record.id in inSeqs_1:
+      inSeqs_1.setdefault(record.id, str(record.seq))
+
+  inSeqs_2 = {}
+  for record in SeqIO.parse(ifile_2, iformat_2):
+    if not record.id in inSeqs_2:
+      inSeqs_2.setdefault(record.id, str(record.seq))
+
+  ## If there are inconsistencies among sequences, inform about them
+  if set(inSeqs_1.keys()) ^ set(inSeqs_2.keys()) != set():
+    return False
+
+  ## Check that sequences in both files contain the same residues
+  for seq_id in inSeqs_1:
+    seq_1 = inSeqs_1[seq_id].replace("-", "").replace("*", "")
+    seq_2 = inSeqs_2[seq_id].replace("-", "").replace("*", "")
+
+    if seq_1 != seq_2:
+      return False
+
+  ## If everything is OK, inform about it
   return True
 
 
@@ -435,6 +460,20 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
 
 
 
+
+
+
+
+
+
+
+
+
+################################################################################
+### Old Code
+################################################################################
+
+
 def AlignerPipeline(parameters):
 
   ## Get input folder and seed name
@@ -447,13 +486,6 @@ def AlignerPipeline(parameters):
 
   ## Start counting how much time will cost making an alignment
   start = datetime.datetime.now()
-
-
-
-
-
-
-
 
   ## Predefined input file/s. They may be changed depending on the presence/
   ## absence of selenocysteines
@@ -796,41 +828,3 @@ def MetaAligningMCoffee(bin, inFile, outFile, logFile, pathFile, pars, replace):
   return True
 
 
-def CheckGeneratedAlignment(inSeqsFile, outAligFile):
-  '''
-  '''
-
-  ## We introduce a delay to ensure data is already written in the disk.
-  ## With high-computing facilities, sometimes there are some problems of
-  ## writing to disk the already computed results
-  sleep(5)
-
-  ## Get input sequences before aligning them
-  inSeqs, currentId = {}, None
-  for line in [line for line in map(strip, open(inSeqsFile, "rU")) if line]:
-    if line[0] == ">":
-      currentId = line[1:]
-      inSeqs.setdefault(currentId, "")
-    elif currentId:
-      inSeqs[currentId] += line.replace("-", "")
-
-  ## Get sequences after aligning them to check whether the same number of
-  ## sequences/residues are present in the output alignment.
-  outSeqs, currentId = {}, None
-  for line in [line for line in map(strip, open(outAligFile, "rU")) if line]:
-    if line[0] == ">":
-      currentId = line[1:]
-      outSeqs.setdefault(currentId, "")
-    elif currentId:
-      outSeqs[currentId] += line.replace("-", "")
-  ## Check both files have exactly the same number of sequences
-  if len(inSeqs) != len(outSeqs):
-    return False
-
-  ## ... and each sequences have exactly the same residues
-  for seqId in inSeqs:
-    if not seqId in outSeqs or inSeqs[seqId] != outSeqs[seqId]:
-      return False
-
-  ## If everything is OK, inform about it
-  return True
