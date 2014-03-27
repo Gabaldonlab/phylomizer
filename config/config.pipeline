@@ -81,9 +81,10 @@ hmmer_params        parameter      --noali --nobias --nonull2 --cpu 2 -Z 1000000
 ## forward/backward directions then the resulting alignments will be combined
 ## using an special T-Coffee flavor: M-Coffee
 
-alignment           mode           muscle kalign mafft
+alignment           mode           clustal_omega
 consensus           mode           m_coffee
-both_direction      parameter      True
+trimming            mode           trimal
+both_direction      parameter      False
 
 ## General parameter for aligner programs. Sometimes rare aminoacids such as
 ## selenocysteine 'U' or pyrrolysine 'O' cause programs to fail, therefore,
@@ -102,22 +103,23 @@ kalign              binary
 kalign_params       parameter      -f fasta
 
 clustal_omega        binary
-clustal_omega-params parameter     --auto
+clustal_omega_params parameter     --auto --force
 
 clustalw            binary
-clustalw-params     parameter     -ALIGN
+clustalw_params     parameter      -ALIGN
 
 dialign-tx          binary
 dialign-tx_params   parameter      ~/git/phylomizer/config
 
-# t_coffee            binary
-# tcoffee_params      parameter      -n_core 1 -output fasta
+prank               binary         ~/git/phylomizer/bin/prank/bin/prank
+prank_params        parameter      +F
 
-## Meta-Alignment program
-## We currently only support M-Coffee as meta-aligner, we may add support to
-## other meta-aligner program in the future
-# m_coffee            binary
-# mcoffee_params      parameter      -n_core 1 -output fasta
+t_coffee            binary
+t_coffee_params     parameter      -n_core 1 -output fasta -quiet
+
+##  We used an special T-Coffee flavor to generate the meta-alignment
+m_coffee            binary         t_coffee
+m_coffee_params     parameter      -n_core 1 -output fasta -quiet
 
 ## Alignment trimming program
 ## We currently only support trimAl as alignment trimming program. It implements
@@ -127,12 +129,10 @@ dialign-tx_params   parameter      ~/git/phylomizer/config
 trimal              binary
 trimal_params       parameter	     -phylip -gt 0.1
 trimal_compare      parameter	     -ct 0.1667
-
+trimal_cds          parameter	     -ignorestopcodon
 
 ## Alignment and Sequences files manipulation
 readal              binary
-
-
 
 ### Phylogenetic tree reconstruction program
 #phyml             binary

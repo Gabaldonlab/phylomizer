@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import tempfile
 import datetime
@@ -9,6 +10,7 @@ from time import sleep
 from hashlib import md5
 from string import strip
 from socket import getfqdn
+from getpass import getuser
 from operator import itemgetter
 from module_utils import lookForDirectory, lookForFile, splitSequence, \
   format_time
@@ -26,10 +28,10 @@ file_extension = {
 
 ## Exit code meanings
 ##  80: Not enough sequences
-##  81: Problems making format conversions/reversion sequences
-##  82: Problems trimming input alignment
-
 exit_codes = {
+  "trimal":         82,    ##  82: Problems trimming input alignment using trimAl
+  "readal":         81,    ##  81: Problems handling input sequence/msa files
+
   "prank":          92,    ##  92: Problems aligning with PRANK
   "mafft":          87,    ##  87: Problems aligning with MAFFT
   "kalign":         89,    ##  89: Problems aligning with KAlign
@@ -40,8 +42,7 @@ exit_codes = {
   "clustalw":       91,    ##  91: Problems aligning with Clustal-W
   "clustal_omega":  92,    ##  92: Problems aligning with Clustal-Omega
 
-  "generic":        95,    ##  95: Problems aligning with a generic/unsupported
-                           ##      program
+  "generic":        95,    ##  95: Program not supported
 }
 
 def alignment(parameters):
@@ -84,7 +85,7 @@ def alignment(parameters):
 
   ## Evaluate whether input sequences will be aligned following one direction,
   ## forward - left to right - or both directions meaning forward/reverse
-  if type(parameters["both_direction"]) == "str":
+  if isinstance(parameters["both_direction"], basestring):
     parameters["both_direction"] = parameters["both_direction"].lower() =="true"
 
   ## Get some information such as number of input sequences and the presence of
@@ -105,7 +106,10 @@ def alignment(parameters):
 
       ## If get an positive answer means, the reverse sequence file has been
       ## generated and therefore any downstream file should be over-written
-      if reverseSequences(parameters, logFile):
+      out_file = ("%s.seqs.reverse") % (oFile)
+
+      if reverseSequences(parameters["readal"], parameters["in_file"], \
+        out_file, parameters["replace"], logFile):
         parameters["replace"] = True
 
     ## Substitute rare amino-acids if needed it
@@ -136,6 +140,7 @@ def alignment(parameters):
     if parameters["both_direction"]:
       directions.append("reverse")
 
+    generated_alignments = set()
     ## Once all required sequence files has been set-up, proceed to build the
     ## alignments itself.
     for prog in parameters["alignment"]:
@@ -164,42 +169,101 @@ def alignment(parameters):
         out_file = ("%s.alg.%s%s.%s") % (oFile, "no_rare_aa." if selenocys \
           or pyrrolys else "", direc, extension)
 
+        ## Perfom alignment and check whether it has been generated or already
+        ## exist
+        if perfomAlignment(prog, binary, params, in_file, out_file,
+          logFile, parameters["replace"]):
+          parameters["replace"] = True
 
-        perfomAlignment(prog, binary, params, in_file, out_file, logFile, \
-          parameters["replace"])
+        ## If any Selenocysteine or Pyrrolyseine is present, generate the
+        ## final alignment removing the wild cards and putting back the original
+        ## amino-acids
+        if selenocys or pyrrolys:
+          ## Get real output filename
+          alt_file = ("%s.alg.%s.%s") % (oFile, direc, extension)
 
-  #~ ## Align input sequences depending on the selected programs
-  #~ ## Muscle
-  #~ if "muscle" in parameters["single_program"]:
-#~
-    #~ ## Alignment will be made in forward/reverse direction
-    #~ if parameters["both_direction"] == True:
-      #~ output =  ("%s.alg") % (oFile)
-      #~ output += ("%s.reverse.msl") % (".noselcys" if Sel == True else "")
-#~
-      #~ lrepl = AligningMuscle(parameters["muscle"], revCurrentInFile, output,
-        #~ oFile + ".log", parameters["muscle_params"], parameters["replace"])
-#~
-      #~ if Sel == True:
-        #~ realOutput = ("%s.alg.reverse.msl") % (oFile)
-        #~ lrepl = ChangeResiduesSeq(output, realOutput, parameters["in_letter"],
-          #~ "U", parameters["replace"])
-#~
-      #~ lrepl = GettingReverse(parameters["readal"], oFile + '.alg.reverse.msl', \
-        #~ oFile + ".alg.reverse.forw.msl", oFile + ".log", parameters["replace"])
-#~
-    #~ output =  ("%s.alg") % (oFile)
-    #~ output += ("%s.forward.msl") % (".noselcys" if Sel == True else "")
-#~
-    #~ lrepl = AligningMuscle(parameters["muscle"], currentInFile, output, \
-      #~ oFile + ".log", parameters["muscle_params"], parameters["replace"])
-#~
-    #~ if Sel == True:
-      #~ realOutput = ("%s.alg.forward.msl") % (oFile)
-      #~ lrepl = ChangeResiduesSeq(output, realOutput, \
-        #~ parameters["in_letter"], "U", parameters["replace"])
+          ## Make the change and record whether files has been generated de-novo
+          if replaceRareAminoAcids(out_file, alt_file, parameters["replace"], \
+            logFile, parameters["in_letter"], back = True):
+            parameters["replace"] = True
 
+          ## We over-write out_file variable with the current outfile name. We
+          ## will store such output file in case a meta-alignment has to be
+          ## generated
+          out_file = alt_file
 
+        ## For reverse alignment, get its reverse - meaning get residues
+        ## according to the initial order
+        if direc == "reverse":
+          in_file = ("%s.alg.reverse.%s") % (oFile, extension)
+          out_file = ("%s.alg.reverse.forw.%s") % (oFile, extension)
+
+          if reverseSequences(parameters["readal"], in_file, out_file, \
+            parameters["replace"], logFile):
+            parameters["replace"] = True
+
+        ## Store all output alignments
+        generated_alignments.add(out_file)
+
+    if len(generated_alignments) > 1 and "consensus" in parameters:
+
+      prog = parameters["consensus"][0]
+      if not prog in parameters:
+        sys.exit(("ERROR: Selected program '%s' is not available accordding to "
+          "the configuration file") % (prog))
+
+      ## Get binary as well as any input parameters for each aligner and the
+      ## output file extension
+      binary = parameters[prog]
+      prog_params = ("%s_params") % (prog)
+
+      params = parameters[prog_params] if prog_params in parameters else ""
+      params = ("%s -aln %s") % (params, " ".join(generated_alignments))
+
+      out_file = ("%s.alg.metalig") % (oFile)
+      if perfomAlignment(prog, binary, params, parameters["in_file"], out_file,
+        logFile, parameters["replace"]):
+        parameters["replace"] = True
+
+    ## Set the current output alignment as the one generated at a previous step
+    else:
+      out_file = generated_alignments.pop()
+
+    ## If set, trim resulting alignment
+    if "trimming" in parameters:
+      prog = parameters["trimming"][0]
+      if not prog in parameters:
+        sys.exit(("ERROR: Selected program '%s' is not available accordding to "
+          "the configuration file") % (prog))
+
+      ## Get binary as well as any input parameters for each aligner and the
+      ## output file extension
+      binary = parameters[prog]
+      prog_params = ("%s_params") % (prog)
+
+      params = parameters[prog_params] if prog_params in parameters else ""
+
+      CDS = None
+      clean_file = ("%s.alg.clean%s") % (oFile, "")
+
+      prog_params = ("%s_compare") % (prog)
+      if len(generated_alignments) > 1:
+        if prog_params in parameters:
+          params = ("%s %s") % (params, parameters[prog_params])
+
+        path_file = ("%s.alg.paths") % (oFile)
+        print >> open(path_file, "w"), "\n".join(generated_alignments)
+
+        trimmingAlignment(prog, binary, params, clean_file, logFile,
+          parameters["replace"], compare_msa = path_file, force_refer_msa = \
+          out_file, cds_file = CDS)
+
+      else:
+        trimmingAlignment(prog, binary, params, clean_file, logFile,
+          parameters["replace"], in_file = in_file, cds_file = CDS)
+
+      ## After the trimming, set the final output file as the trimmed file
+      out_file = clean_file
 
   final = datetime.datetime.now()
   print >> logFile, ("###\n###\tSTEP\tMultipple Sequence Alignment\tEND\t"
@@ -211,7 +275,7 @@ def alignment(parameters):
 
   ## Update the input file parameter and return the dictionary containing all
   ## parameters. Those parameters may be used in other steps
-  #~ parameters["in_file"] = outFile
+  parameters["in_file"] = out_file
 
   ## Before returning to the main program, get back to the original working
   ## directory
@@ -243,22 +307,19 @@ def check_count_sequences(in_file):
 
   return numb_sequences, selenocys, pyrrolys
 
-def reverseSequences(parameters, logFile):
+def reverseSequences(binary, in_file, out_file, replace, logFile):
   '''
   Reverse the input sequences using readAl for that purpose
   '''
 
-  ## Define the output file
-  out_file = os.path.join(parameters["out_directory"], parameters["prefix"])
-  out_file += (".seqs.reverse")
-
-  if lookForFile(out_file) and not parameters["replace"]:
+  ## Check whether the output file already exists. If it is not set to replace
+  ## it, just return to the calling function
+  if lookForFile(out_file) and not replace:
     return False
 
   ## Define the command-line for getting the sequences reverse independently of
   ## being aligned or not and of the input format
-  bin = parameters["readal"]
-  cmd = ("%s -in %s -out %s -reverse") % (bin, parameters["in_file"], out_file)
+  cmd = ("%s -in %s -out %s -reverse") % (binary, in_file, out_file)
 
   ## Record the time and precise command-line
   name = getfqdn()
@@ -356,17 +417,33 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
     cmd = ("%s %s -in %s -out %s") % (binary, parameters, in_file, out_file)
 
   elif label in ["clustalw"]:
-    cmd = ("%s %s -INFILE=%s -OUTFILE=%s") % (binary, parameters, inFile, \
-      outFile)
+    cmd = ("%s %s -INFILE=%s -OUTFILE=%s") % (binary, parameters, in_file, \
+      out_file)
 
   elif label in ["clustal_omega"]:
-    cmd = ("%s %s --in %s --out %s") % (binary, parameters, inFile, outFile)
+    cmd = ("%s %s --in %s --out %s") % (binary, parameters, in_file, out_file)
 
   elif label in ["mafft", "dialign_tx"]:
-    cmd = ("%s %s %s > %s") % (binary, parameters, inFile, outFile)
+    cmd = ("%s %s %s > %s") % (binary, parameters, in_file, out_file)
 
+  elif label in ["prank"]:
+    cmd = ("%s %s -d=%s -o=%s") % (binary, parameters, in_file, out_file)
+
+  ## On t-coffee case, we need to set-up some ENV variables to be able to run
+  ## smoothly the program
+  elif label in ["t_coffee", "m_coffee"]:
+
+    sp.call(("mkdir -p -m0777 /tmp/tcoffee"), shell = True)
+    drc = ("/tmp/tcoffee/%s") % (getuser())
+    sp.call(("mkdir -p -m0777 %s") % (drc), shell = True)
+    os.putenv("LOCKDIR_4_TCOFFEE", drc)
+    os.putenv("TMP_4_TCOFFEE", drc)
+
+    cmd = ("%s %s %s -outfile %s") % (binary, in_file, parameters, out_file)
+
+  ## In any other case, finish with a generic error
   else:
-    return False
+    sys.exit(exit_codes["generic"])
 
   ## Record the time and precise command-line
   name = getfqdn()
@@ -392,13 +469,80 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
   print >> logFile, ("###\tTime\t%s\n###") % (total)
   logFile.flush()
 
+  ## If we are working with PRANK, move output file - which should have a suffix
+  ## depending on the output format
+  if label in ["prank"]:
+    suffix = "fas" if parameters.find("-f=") == -1 else \
+      "nex" if parameters.find("-f=nexus") != -1 else "phy"
+    if lookForFile(out_file + ".best." + suffix):
+      sp.call(("mv %s.best.%s %s") % (out_file, suffix, out_file), shell = True)
+
+  ## If any mode of t_coffee is used: t_coffee or m_coffee, we should remove the
+  ## guide tree generate during the program execution
+  if label in ["t_coffee", "m_coffee"]:
+    guide_tree = ".".join(os.path.split(in_file)[1].split(".")[:-1])
+    sp.call(("rm -f %s.dnd") % (guide_tree), shell = True)
+
   ## Check whether the output alignment has been already generated.
   ## In case something goes wrong, remove the output file and finish the
   ## current execution
-  if not checkAlignment(inFile, outFile):
+  if not checkAlignment(in_file, out_file):
     print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
-    sp.call(("rm -f %s") % (outFile), shell = True)
+    sp.call(("rm -f %s") % (out_file), shell = True)
     sys.exit(exit_codes[label])
+
+  return True
+
+def trimmingAlignment(label, binary, parameters, out_file, logFile, replace, \
+  in_file = None, compare_msa = None, force_refer_msa = None, cds_file = None):
+  '''
+  Function to trim a given multiple sequence alignment according to a number of
+  parameters. It may also returns the output file in codons if appropiate
+  parameters are used.
+  '''
+
+  ## Check whether the output file already exists. If it is not set to replace
+  ## it, just return to the calling function
+  if lookForFile(out_file) and not replace:
+    return False
+
+  cmd = ""
+  ## Construct a customize trimAl command-line call
+  ## If an input CDS file is set, generate the output alignment using such
+  ## information
+  if cds_file:
+    cmd = ("%s -backtrans %s ") % (cmd, cds_file)
+  if compare_msa:
+    cmd = ("%s -compareset %s ") % (cmd, compare_msa)
+  if force_refer_msa:
+    cmd = ("%s -forceselect %s ") % (cmd, force_refer_msa)
+  if in_file:
+    cmd = ("%s -in %s ") % (cmd, in_file)
+  cmd = ("%s %s -out %s %s") % (binary, cmd, out_file, parameters)
+
+  ## Record the time and precise command-line
+  name = getfqdn()
+  start = datetime.datetime.now()
+  date = start.strftime("%H:%M:%S %m/%d/%y")
+
+  print >> logFile, ("###\n###\tTrimming Input MSA\t%s") % (date)
+  print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
+  logFile.flush()
+
+  try:
+    proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
+  except OSError, e:
+    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
+    sys.exit(exit_codes[label])
+
+  if proc.wait() != 0:
+    print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
+    sys.exit(exit_codes[label])
+
+  final = datetime.datetime.now()
+  total = format_time((final - start).seconds if start else 0)
+  print >> logFile, ("###\tTime\t%s\n###") % (total)
+  logFile.flush()
 
   return True
 
@@ -411,284 +555,40 @@ def checkAlignment(ifile_1, ifile_2, iformat_1 = "fasta", iformat_2 = "fasta"):
   ## We introduce a delay to ensure data is already written in the disk.
   ## With high-computing facilities, sometimes there are some problems of
   ## writing to disk the already computed results
-  sleep(10)
+  if not lookForFile(ifile_1) or not lookForFile(ifile_2, attempts = 5):
+    return False
 
-  ## Read both input files
+  ## Read both input files - remvoving ambiguous characters and checking for
+  ## duplicate names. We used regular expressions for removing any character
   inSeqs_1 = {}
   for record in SeqIO.parse(ifile_1, iformat_1):
-    if not record.id in inSeqs_1:
-      inSeqs_1.setdefault(record.id, str(record.seq))
+    if record.id in inSeqs_1:
+      return False
+    seq = re.sub(r'[^a-zA-Z]', '', str(record.seq))
+    inSeqs_1.setdefault(record.id, seq)
 
   inSeqs_2 = {}
   for record in SeqIO.parse(ifile_2, iformat_2):
-    if not record.id in inSeqs_2:
-      inSeqs_2.setdefault(record.id, str(record.seq))
+    if record.id in inSeqs_2:
+      return False
+    seq = re.sub(r'[^a-zA-Z]', '', str(record.seq))
+    inSeqs_2.setdefault(record.id, seq)
 
   ## If there are inconsistencies among sequences, inform about them
   if set(inSeqs_1.keys()) ^ set(inSeqs_2.keys()) != set():
     return False
 
   ## Check that sequences in both files contain the same residues
-  for seq_id in inSeqs_1:
-    seq_1 = inSeqs_1[seq_id].replace("-", "").replace("*", "")
-    seq_2 = inSeqs_2[seq_id].replace("-", "").replace("*", "")
-
-    if seq_1 != seq_2:
+  for seq in inSeqs_1:
+    if inSeqs_1[seq] != inSeqs_2[seq]:
       return False
 
   ## If everything is OK, inform about it
   return True
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ################################################################################
 ### Old Code
 ################################################################################
-
-
-def AlignerPipeline(parameters):
-
-  ## Get input folder and seed name
-
-  ## Get output folder
-  oFile = os.path.join(parameters["outDirec"], iFile.split(".")[0])
-
-  ## Change current directory to the input folder
-  os.chdir(iFolder)
-
-  ## Start counting how much time will cost making an alignment
-  start = datetime.datetime.now()
-
-  ## Predefined input file/s. They may be changed depending on the presence/
-  ## absence of selenocysteines
-  currentInFile = parameters["inFile"]
-  if parameters["both_direction"] == True:
-    revCurrentInFile = ("%s.seqs.reverse") % (oFile)
-
-    ## Get reversed input sequences
-    lrepl = GettingReverse(parameters["readal"], parameters["inFile"],
-      revCurrentInFile, oFile + ".log", parameters["replace"])
-#~
-    #~ ## If the file has been generated "de novo", regenerate the rest of files
-    #~ if lrepl:
-
-
-  ## In those cases where a Selenocysteines have been detected, change them by
-  ## wildcard characters
-  if Sel == True:
-    if parameters["verbose"] > 0:
-      print "At least, one selenocysteine residue has been detected"
-      print >> open(oFile + ".log", "a+"), ("### At least one SelenoCysteine "
-        + "residue has been detected")
-
-    lrepl = ChangeResiduesSeq(parameters["inFile"], oFile + ".seqs.noselcys", \
-      "U", parameters["in_letter"], parameters["replace"])
-
-    ## Certain programs need wildcards instead of SelenoCysteines (U) for
-    ## working properly
-    currentInFile = ("%s.seqs.noselcys") % (oFile)
-
-    ## If the file has been generated "de novo", regenerate the rest of files
-    if lrepl:
-      parameters["replace"] = True
-
-    if parameters["both_direction"] == True:
-      lrepl = GettingReverse(parameters["readal"], oFile + ".seqs.noselcys", \
-        oFile + ".seqs.noselcys.reverse", oFile + ".log", parameters["replace"])
-      revCurrentInFile = ("%s.seqs.noselcys.reverse") % (oFile)
-
-
-
-
-
-
-
-
-
-  ## KAlign
-  if "kalign" in parameters["single_program"]:
-
-    ## Alignment will be made in forward/reverse direction
-    if parameters["both_direction"] == True:
-      output =  ("%s.alg") % (oFile)
-      output += ("%s.reverse.kal") % (".noselcys" if Sel == True else "")
-
-      lrepl = AligningKAlign(parameters["kalign"], revCurrentInFile, output,
-        oFile + ".log", parameters["kalign_params"], parameters["replace"])
-
-      if Sel == True:
-        realOutput = ("%s.alg.reverse.kal") % (oFile)
-        lrepl = ChangeResiduesSeq(output, realOutput, parameters["in_letter"],
-          "U", parameters["replace"])
-
-      lrepl = GettingReverse(parameters["readal"], oFile + '.alg.reverse.kal', \
-        oFile + ".alg.reverse.forw.kal", oFile + ".log", parameters["replace"])
-
-    output =  ("%s.alg") % (oFile)
-    output += ("%s.forward.kal") % (".noselcys" if Sel == True else "")
-
-    lrepl = AligningKAlign(parameters["kalign"], currentInFile, output, \
-      oFile + ".log", parameters["kalign_params"], parameters["replace"])
-
-    if Sel == True:
-      realOutput = ("%s.alg.forward.kal") % (oFile)
-      lrepl = ChangeResiduesSeq(output, realOutput, \
-        parameters["in_letter"], "U", parameters["replace"])
-
-  ## Mafft
-  if "mafft" in parameters["single_program"]:
-
-    ## Alignment will be made in forward/reverse direction
-    if parameters["both_direction"] == True:
-      output =  ("%s.alg") % (oFile)
-      output += ("%s.reverse.mft") % (".noselcys" if Sel == True else "")
-
-      lrepl = AligningMafft(parameters["mafft"], revCurrentInFile, output,
-        oFile + ".log", parameters["mafft_params"], parameters["replace"])
-
-      if Sel == True:
-        realOutput = ("%s.alg.reverse.mft") % (oFile)
-        lrepl = ChangeResiduesSeq(output, realOutput, parameters["in_letter"],
-          "U", parameters["replace"])
-
-      lrepl = GettingReverse(parameters["readal"], oFile + '.alg.reverse.mft', \
-        oFile + ".alg.reverse.forw.mft", oFile + ".log", parameters["replace"])
-
-    output =  ("%s.alg") % (oFile)
-    output += ("%s.forward.mft") % (".noselcys" if Sel == True else "")
-
-    lrepl = AligningMafft(parameters["mafft"], currentInFile, output, \
-      oFile + ".log", parameters["mafft_params"], parameters["replace"])
-
-    if Sel == True:
-      realOutput = ("%s.alg.forward.mft") % (oFile)
-      lrepl = ChangeResiduesSeq(output, realOutput, parameters["in_letter"],
-        "U", parameters["replace"])
-
-  ## DiAlign-TX
-  if "dialign-tx" in parameters["single_program"]:
-
-    if parameters["both_direction"] == True:
-      revInFile = ("%s.seqs.reverse") % (oFile)
-      output = ("%s.alg.reverse.dtx") % (oFile)
-
-      lrepl = AligningDialgnTX(parameters["dialign-tx"], revInFile, output,
-        oFile + ".log", parameters["dialigntx_params"], parameters["replace"])
-
-      lrepl = GettingReverse(parameters["readal"], oFile + '.alg.reverse.dtx', \
-        oFile + ".alg.reverse.forw.dtx", oFile + ".log", parameters["replace"])
-
-    lrepl = AligningDialgnTX(parameters["dialign-tx"], parameters["inFile"], \
-      oFile + ".alg.forward.dtx", oFile + ".log", parameters["dialigntx_params"],
-      parameters["replace"])
-
-  if lrepl:
-    parameters["replace"] = True
-
-  ## If more than one alignment have been generated, generate an meta-alignment
-  if len(parameters["single_program"]) > 1 or \
-    parameters["both_direction"] == True:
-
-    ## Decide how many directions have been use
-    direction = ['forward']
-    if parameters["both_direction"] == True:
-      direction.append('reverse.forw')
-
-    ## Open output file to store alignments generated previously
-    pathFile = open(oFile + ".alg.paths", "w")
-
-    ## Decide which alignments/orientations will be used to generate the
-    ## meta-alignment
-    for orient in direction:
-      for pr in parameters["single_program"]:
-        print >> pathFile, ("%s.alg.%s.%s") % (oFile, orient, programs[pr])
-    pathFile.close()
-
-    if lrepl:
-      parameters["replace"] = True
-
-    ## Generate a meta-alignment using information coming from single alignments
-    ## generated with available programs
-    MetaAligningMCoffee(parameters["t_coffee"], parameters["inFile"], oFile + \
-      ".alg.metalig", oFile + ".log",  oFile + ".alg.paths",
-      parameters["mcoffee_params"], parameters["replace"])
-
-    ## Convert meta-alignment into phylip format
-    rFile = ("%s.alg.metalig") % (oFile)
-    convertAlignment(parameters["trimal"], rFile, rFile, "phylip",
-      oFile + ".log", parameters["replace"])
-
-    ## Trim the meta-alignment forcing its selection with information coming
-    ## from those alignments used to generate such meta-alignment
-    inFile, outFile = ("%s.alg.metalig") % (oFile), ("%s.alg.clean") % (oFile)
-    trimmingAlignment(parameters["trimal"], None, outFile, oFile + ".log",
-      inFile, oFile + ".alg.paths", parameters["trimal_compare"],
-      parameters["trimal_params"], parameters["replace"])
-
-  # Otherwise, trim output aligment using information coming from one alignment
-  else:
-
-    ## Select which program has been used to generate the single alignment
-    if "muscle" in parameters["single_program"]:
-      ext = "alg.forward.msl"
-    elif "mafft" in parameters["single_program"]:
-      ext = "alg.forward.mft"
-    elif "kalign" in parameters["single_program"]:
-      ext = "alg.forward.kal"
-    elif "dialign-tx" in parameters["single_program"]:
-      ext = "alg.forward.dtx"
-
-    ## Convert to phylip format the single alignment generated by any of
-    ## available programs
-    inFile, outFile = ("%s.%s") % (oFile, ext), ("%s.alg.metalig") % (oFile)
-    convertAlignment(parameters["trimal"], inFile, outFile, "phylip",
-      oFile + ".log", parameters["replace"])
-
-    ## Trim selected alignment using parameters indicated in the config file
-    inFile, outFile = ("%s.alg.metalig") % (oFile), ("%s.alg.clean") % (oFile)
-    trimmingAlignment(parameters["trimal"], inFile, outFile, oFile + ".log", "",
-      "", "", parameters["trimal_params"], parameters["replace"])
-
-  ## Report how much time has cost the alignment reconstruction part
-  final = datetime.datetime.now()
-  date  = final.strftime("%H:%M:%S %m/%d/%y")
-  lgFile = open(oFile + ".log", "a+")
-  print >> lgFile, ("###\n###\n### %s\n### Finishing ALIGNMENT step") % (date)
-  total = format_time((final - start).seconds if start else 0)
-  print >> lgFile, ("### Total ALIGNMENT step\t%s\n###\n###\n") % (total)
-  lgFile.close()
-
-  return oFile + ".alg.clean"
-
-
 
 def convertAlignment(bin, inFile, outFile, outFormat, logFile, replace):
   '''
@@ -721,109 +621,6 @@ def convertAlignment(bin, inFile, outFile, outFormat, logFile, replace):
   total = format_time((final - start).seconds if start else 0)
   print >> lgFile, ("###\n### Total time\t%s\n###") % (total)
   lgFile.close()
-
-  return True
-
-def trimmingAlignment(bin, inFile, outFile, logFile, forceSelection,
-  compareSelection, compareParameters, parameters, replace):
-  '''
-  '''
-
-  if lookForFile(outFile) and not replace:
-    return False
-  lgFile = open(logFile, "a+ ") if logFile != "" else None
-
-  cmd = ""
-  ## Construct a customize trimAl command-line call
-  if compareSelection:
-    cmd = (" -compareset %s") % (compareSelection)
-  if forceSelection:
-    cmd = ("%s -forceselect %s") % (cmd, forceSelection)
-  if compareParameters:
-    cmd = ("%s %s") % (cmd, compareParameters)
-  if inFile:
-    cmd = ("%s -in %s") % (cmd, inFile)
-  cmd = ("%s %s -out %s %s") % (bin, cmd, outFile, parameters)
-
-  start = datetime.datetime.now()
-  date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> lgFile, ("###\n### trimAl\n### %s\n### %s\n###") % (date, cmd)
-  lgFile.flush()
-
-  try:
-    proc = sp.Popen(cmd, shell = True, stderr = lgFile, stdout = lgFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
-    sys.exit(82)
-
-  if proc.wait() != 0:
-    print >> sys.stderr, "ERROR: Execution failed: trimAl"
-    sys.exit(82)
-
-  final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
-  print >> lgFile, ("###\n### Total time\t%s\n###") % (total)
-  lgFile.close()
-
-  return True
-
-
-
-
-
-def MetaAligningMCoffee(bin, inFile, outFile, logFile, pathFile, pars, replace):
-  '''
-  '''
-
-  if lookForFile(outFile) and not replace:
-    return False
-  lgFile = open(logFile, "a+ ") if logFile != "" else None
-
-  ## Define some environment variables for t_coffee
-  # user = os.getenv("LOGNAME")
-  # try:
-  #   proc = sp.Popen(("mkdir -p -m0777 /tmp/tcoffee/%s;") % (user), shell = True)
-  #   os.putenv("LOCKDIR_4_TCOFFEE", ("/tmp/tcoffee/%s") % (user))
-  #   os.putenv("TMP_4_TCOFFEE", ("/tmp/tcoffee/%s") % (user))
-  # except OSError, e:
-  #   pass
-
-  ## Get all alignments which will be used to construct the MetaAlignment
-  files = " ".join([line.strip() for line in open(pathFile, "rU")])
-  files = (" -aln %s") % (files)
-
-  cmd = ("%s %s -outfile %s %s %s") % (bin, inFile, outFile, pars, files)
-  start = datetime.datetime.now()
-  date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> lgFile, ("###\n### M-COFFEE\n### %s\n### %s\n###") % (date, cmd)
-  # localVars =  ("###\n### TMP_4_TCOFFEE=/tmp/tcoffee/%s\n") % (user)
-  # localVars += ("### LOCKDIR_4_TCOFFEE=/tmp/tcoffee/%s") % (user)
-  # print >> lgFile, ("###\n### M-COFFEE\n### %s\n%s\n### %s\n###") % (date,
-  #  localVars, cmd)
-  lgFile.flush()
-
-  try:
-    proc = sp.Popen(cmd, shell = True, stderr = lgFile, stdout = lgFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
-    sys.exit(90)
-
-  if proc.wait() != 0:
-    print >> sys.stderr, "ERROR: Execution failed: M-Coffee"
-    sys.exit(90)
-
-  if not CheckGeneratedAlignment(inFile, outFile):
-    print >> sys.stderr, "ERROR: Execution failed: M-Coffee - Alignment Check"
-    sp.call(("rm -f %s") % (outFile), shell = True)
-    sys.exit(90)
-
-  final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
-  print >> lgFile, ("###\n### Total time\t%s\n###") % (total)
-  lgFile.close()
-
-  ## Remove any temp file
-  sp.call("rm -f " + os.path.split(inFile)[1][:10] + "*.dnd", shell = True)
 
   return True
 

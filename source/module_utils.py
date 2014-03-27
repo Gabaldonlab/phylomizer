@@ -2,6 +2,7 @@ import sys, os, subprocess as sp
 from operator import itemgetter
 from getpass import getpass
 from string import strip
+from time import sleep
 
 def parseComments(string_list):
   '''
@@ -80,13 +81,22 @@ def lookForProgram(binary):
     return None
   return program_path
 
-def lookForFile(input_file):
+def lookForFile(input_file, sleep_interval = 5, attempts = 1):
   ''' Return if a given file exists or not
   '''
+
+  ## If input file doesn't exit, don't check it
+  if not input_file:
+    return False
+
+  ## We can delay to check whether a given file exists and contains something
+  while not os.path.exists(input_file) and attempts:
+    sleep(sleep_interval)
+    attempts -= 1
+
   try:
     return (os.path.isfile(input_file) and os.path.getsize(input_file) > 0)
   except:
-    print input_file
     return False
 
 def lookForDirectory(input_direct, create = True):

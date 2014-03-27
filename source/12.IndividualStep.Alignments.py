@@ -61,7 +61,7 @@ if __name__ == "__main__":
     parameters["both_direction"] = True
 
   ## Show which parameters has been set-up
-  output = [("| %-15s\t| %s") % (("'%s'") % (key), value) for key,value in \
+  output = [("| %-20s\t| %s") % (("'%s'") % (key), value) for key,value in \
     sorted(parameters.iteritems())]
   maxLen = sorted([len(l) for l in output])[-1] + 12
 
