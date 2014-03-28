@@ -129,8 +129,8 @@ def homology(parameters):
         found.add(record.id)
       output_file.close()
 
-      if found - set(selected_sequences.keys()) != set():
-        missed = ",".join(sorted(found - set(selected_sequences.keys())))
+      if set(selected_sequences.keys()) - found != set():
+        missed = ",".join(sorted(set(selected_sequences.keys()) - found))
         sys.exit(("ERROR: Check your input CDS file '%s'. Impossible to find "
           "homologs sequences [missing:'%s']") % (parameters["cds"], missed))
 
