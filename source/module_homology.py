@@ -41,6 +41,19 @@ def homology(parameters):
     sys.exit("ERROR: Check your configuration file. This tool '%s' is not among"
       + " available methods")
 
+  ## Check whether if an special mode has been selected - for instance
+  ## "prot2codon" or "prot2nuc" - and a CDS file has been defined
+  ## If not mode is define, we will work with a datatype - normally proteins
+  if "cds" in parameters and not parameters["residue_datatype"] in \
+    ["prot2codon", "prot2nuc"]:
+    sys.exit("ERROR: To use an additional CDS file, you should set the <parame"
+      + "ter> 'residue_datatype' to either 'prot2codon' or 'prot2nuc'")
+
+  if not "cds" in parameters and parameters["residue_datatype"] in \
+    ["prot2codon", "prot2nuc"]:
+    sys.exit("ERROR: When 'residue_datatype' is set to either 'prot2codon' or "
+      + "'prot2nuc', an input CDS file is needed")
+
   ## If the homology search will use any program from the BLAST package, check
   ## whether the TARGET SEQUENCES file has been already formatted.
   if parameters["homology"][0] in ["legacy_blast", "blast+"]:
@@ -96,6 +109,31 @@ def homology(parameters):
       print >> output_file, (">%s\n%s") % (seqId, selected_sequences[seqId][1])
     output_file.close()
 
+  ## If a CDS input file is set, use it to associate to homologous protein
+  ## sequences their corresponding CDS
+  if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
+
+    cdsFile = ("%s.seqs_cds") % (oFile)
+
+    ## Check whether the file already exists or not.
+    if not lookForFile(cdsFile) or parameters["replace"]:
+      parameters["replace"] = True
+
+      output_file = open(cdsFile, "w")
+      found = set()
+      for record in SeqIO.parse(parameters["cds"], "fasta"):
+        if not record.id in selected_sequences:
+          continue
+        seq = splitSequence(str(record.seq))
+        print >> output_file, (">%s\n%s") % (record.id, seq)
+        found.add(record.id)
+      output_file.close()
+
+      if found - set(selected_sequences.keys()) != set():
+        missed = ",".join(sorted(found - set(selected_sequences.keys())))
+        sys.exit(("ERROR: Check your input CDS file '%s'. Impossible to find "
+          "homologs sequences [missing:'%s']") % (parameters["cds"], missed))
+
   ## Print how much time was needed to perform the whole homology search step
   final = datetime.datetime.now()
   date  = final.strftime("%H:%M:%S %m/%d/%y")
@@ -108,6 +146,11 @@ def homology(parameters):
   ## Update the input file parameter and return the dictionary containing all
   ## parameters. Those parameters may be used in other steps
   parameters["in_file"] = outFile
+
+  ## Update the associate CDS file with the resulting cds file. It will be used
+  ## to make the back-translation in a hypothetical MSA step
+  if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
+    parameters["cds"] = ("%s.seqs_cds") % (oFile)
 
   ## Before returning to the main program, get back to the original working
   ## directory

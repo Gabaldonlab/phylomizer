@@ -88,6 +88,25 @@ def alignment(parameters):
   if isinstance(parameters["both_direction"], basestring):
     parameters["both_direction"] = parameters["both_direction"].lower() =="true"
 
+  ## Check whether if an special mode has been selected - for instance
+  ## "prot2codon" or "prot2nuc" - and a CDS file has been defined
+  ## If not mode is define, we will work with a datatype - normally proteins
+  if "cds" in parameters and (not "residue_datatype" in parameters or \
+    not parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]):
+    sys.exit("ERROR: To use an additional CDS file, you should set the <parame"
+      + "ter> 'residue_datatype' to either 'prot2codon' or 'prot2nuc'")
+
+  if not "cds" in parameters and parameters["residue_datatype"] in \
+    ["prot2codon", "prot2nuc"]:
+    sys.exit("ERROR: When 'residue_datatype' is set to either 'prot2codon' or "
+      + "'prot2nuc', an input CDS file is needed")
+
+  ## In normal cases, we don't really need to define a specific datatype to
+  ## build alignments but we need the variable defined to avoid crashed in some
+  ## checks
+  if not "residue_datatype" in parameters:
+    parameters["residue_datatype"] = ""
+
   ## Get some information such as number of input sequences and the presence of
   ## selenocysteine/pyrrolysine residues
   numSeqs, selenocys, pyrrolys = check_count_sequences(parameters["in_file"])
@@ -229,6 +248,32 @@ def alignment(parameters):
     else:
       out_file = generated_alignments.pop()
 
+    ## Either we have to trim the final alignment or we have to backtranslate to
+    ## codons/nucleotides, we will need to check for a program - hopefully
+    ## trimAl - to make the job
+    if "residue_datatype" in ["prot2codon", "residue_datatype"] or "trimming" \
+      in parameters:
+
+      prog = parameters["trimming"][0]
+      if not prog in parameters:
+        sys.exit(("ERROR: Selected program '%s' is not available accordding to "
+          "the configuration file") % (prog))
+
+      ## Get binary as well as any input parameters for each aligner and the
+      ## output file extension
+      binary = parameters[prog]
+
+    ## If the modes "prot2codon" or "prot2nuc" are selected - backtranslated the
+    ## untrimmed/final alignment
+    if "residue_datatype" in ["prot2codon", "residue_datatype"]:
+
+      prog_params = ("%s_cds") % (prog)
+      params = parameters[prog_params] if prog_params in parameters else ""
+
+      if (trimmingAlignment(prog, binary, params, out_file + "_cds", logFile,
+        parameters["replace"], in_file = out_file, cds = parameters["cds"])):
+        parameters["replace"] = True
+
     ## If set, trim resulting alignment
     if "trimming" in parameters:
       prog = parameters["trimming"][0]
@@ -238,13 +283,10 @@ def alignment(parameters):
 
       ## Get binary as well as any input parameters for each aligner and the
       ## output file extension
-      binary = parameters[prog]
       prog_params = ("%s_params") % (prog)
-
       params = parameters[prog_params] if prog_params in parameters else ""
 
-      CDS = None
-      clean_file = ("%s.alg.clean%s") % (oFile, "")
+      clean_file = ("%s.alg.clean") % (oFile)
 
       prog_params = ("%s_compare") % (prog)
       if len(generated_alignments) > 1:
@@ -256,14 +298,34 @@ def alignment(parameters):
 
         trimmingAlignment(prog, binary, params, clean_file, logFile,
           parameters["replace"], compare_msa = path_file, force_refer_msa = \
-          out_file, cds_file = CDS)
+          out_file)
+
+        ## If the backtranslation to codon/nucleotides is required, do it
+        if "residue_datatype" in ["prot2codon", "residue_datatype"]:
+          prog_params = ("%s_cds") % (prog)
+          if prog_params in parameters:
+            params = ("%s %s") % (params, parameters[prog_params])
+
+          trimmingAlignment(prog, binary, params, clean_file + "_cds", logFile,
+            parameters["replace"], compare_msa = path_file, force_refer_msa = \
+            out_file, cds = parameters["cds"])
 
       else:
         trimmingAlignment(prog, binary, params, clean_file, logFile,
-          parameters["replace"], in_file = in_file, cds_file = CDS)
+          parameters["replace"], in_file = out_file)
+
+        ## If the backtranslation to codon/nucleotides is required, do it
+        if "residue_datatype" in ["prot2codon", "residue_datatype"]:
+          prog_params = ("%s_cds") % (prog)
+          if prog_params in parameters:
+            params = ("%s %s") % (params, parameters[prog_params])
+
+          trimmingAlignment(prog, binary, params, clean_file + "_cds", logFile,
+            parameters["replace"], in_file = out_file, cds = parameters["cds"])
 
       ## After the trimming, set the final output file as the trimmed file
-      out_file = clean_file
+      out_file = clean_file + ("_cds" if "residue_datatype" in ["prot2codon", \
+        "residue_datatype"] else "")
 
   final = datetime.datetime.now()
   print >> logFile, ("###\n###\tSTEP\tMultipple Sequence Alignment\tEND\t"
@@ -494,7 +556,7 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
   return True
 
 def trimmingAlignment(label, binary, parameters, out_file, logFile, replace, \
-  in_file = None, compare_msa = None, force_refer_msa = None, cds_file = None):
+  in_file = None, compare_msa = None, force_refer_msa = None, cds = None):
   '''
   Function to trim a given multiple sequence alignment according to a number of
   parameters. It may also returns the output file in codons if appropiate
@@ -510,8 +572,8 @@ def trimmingAlignment(label, binary, parameters, out_file, logFile, replace, \
   ## Construct a customize trimAl command-line call
   ## If an input CDS file is set, generate the output alignment using such
   ## information
-  if cds_file:
-    cmd = ("%s -backtrans %s ") % (cmd, cds_file)
+  if cds:
+    cmd = ("%s -backtrans %s ") % (cmd, cds)
   if compare_msa:
     cmd = ("%s -compareset %s ") % (cmd, compare_msa)
   if force_refer_msa:
@@ -585,6 +647,12 @@ def checkAlignment(ifile_1, ifile_2, iformat_1 = "fasta", iformat_2 = "fasta"):
 
   ## If everything is OK, inform about it
   return True
+
+
+
+
+
+
 
 ################################################################################
 ### Old Code

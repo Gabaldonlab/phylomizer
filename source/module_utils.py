@@ -172,3 +172,19 @@ def sort_hmmer_hits(x, y):
   except:
     print ("x: %s\ty: %s") % (x, y)
   return 0
+
+def printConfig(input_parameters):
+  ''' Function for visualizing the selected parameters for running the pipeline
+      or different steps of it
+  '''
+
+  ## Show which parameters has been set-up
+  output = [("| %-24s\t| %s") % (("'%s'") % (key), value) for key, value in \
+    sorted(input_parameters.iteritems())]
+  maxLen = sorted([len(l) for l in output])[-1] + 18
+
+  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
+  print >> sys.stderr, ("#%s#") % ("Pipeline Configuration".center(maxLen))
+  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
+  print >> sys.stderr, ("%s") % ("\n".join(output))
+  print >> sys.stderr, ("#%s#") % ("#" * maxLen)

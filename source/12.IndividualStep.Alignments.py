@@ -3,7 +3,7 @@ import os
 import sys
 import argparse
 from module_alignments import alignment
-from module_utils import readConfig, lookForDirectory, lookForFile
+from module_utils import readConfig, lookForDirectory, lookForFile, printConfig
 
 if __name__ == "__main__":
 
@@ -11,6 +11,9 @@ if __name__ == "__main__":
 
   parser.add_argument("-i", "--in", dest = "inFile", type = str, default = None,
     help = "Input file containing the query sequence/s")
+
+  parser.add_argument("--cds", dest = "cdsFile", type = str, default = None,
+    help = "Input file containing CDS corresponding to input protein seqs")
 
   parser.add_argument("-c", "--config", dest = "configFile", default = None, \
     type = str, help = "Input configuration file")
@@ -44,6 +47,11 @@ if __name__ == "__main__":
     sys.exit(("ERROR: Check input CONFIG file '%s'") % (args.configFile))
   parameters.setdefault("config_file", args.configFile)
 
+  if args.cdsFile:
+    if not lookForFile(args.cdsFile):
+      sys.exit(("ERROR: Check input CDS file '%s'") % (args.cdsFile))
+    parameters.setdefault("cds", args.cdsFile)
+
   if not lookForDirectory(args.outFolder):
     sys.exit(("ERROR: Check output folder '%s'") % (args.outFolder))
   parameters.setdefault("out_directory", os.path.abspath(args.outFolder))
@@ -60,16 +68,8 @@ if __name__ == "__main__":
   if not "both_direction" in parameters:
     parameters["both_direction"] = True
 
-  ## Show which parameters has been set-up
-  output = [("| %-20s\t| %s") % (("'%s'") % (key), value) for key,value in \
-    sorted(parameters.iteritems())]
-  maxLen = sorted([len(l) for l in output])[-1] + 12
-
-  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
-  print >> sys.stderr, ("#%s#") % ("Pipeline Configuration".center(maxLen))
-  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
-  print >> sys.stderr, ("%s") % ("\n".join(output))
-  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
+  ## Print all set-up parameters
+  printConfig(parameters)
 
   ## Reconstruct the Multiple Sequence Alignment for the input Sequences
   alignment(parameters)

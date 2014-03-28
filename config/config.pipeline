@@ -30,9 +30,10 @@ verbose           parameter	 1
 ## whether amino-acid residues in the trimmed alignment should be converted to
 ## their corresponding codon or nucleotides prior to the phylogenetic tree
 ## reconstruction - or phylogenetic tree reconstruction - when model selection
-## is used. Available values are "protein", "prot2codon", "prot2nuc" or "nuc"
+## is used. Available values are "protein", "prot2codon", "prot2nuc" and "nuc"
 
-residue_datatype    parameter      protein
+# residue_datatype    parameter      protein
+residue_datatype    parameter      prot2codon
 
 ## HOMOLOGY SEARCH Step. General parameters, available modes and programs are
 ## defined here
@@ -47,7 +48,7 @@ hits                parameter      150
 
 ## Protein Homology search
 
-homology            mode           legacy_blast
+homology            mode           blast+
 
 ## Legacy NCBI BLAST
 legacy_blast        mode           blastpgp
@@ -81,10 +82,10 @@ hmmer_params        parameter      --noali --nobias --nonull2 --cpu 2 -Z 1000000
 ## forward/backward directions then the resulting alignments will be combined
 ## using an special T-Coffee flavor: M-Coffee
 
-alignment           mode           clustal_omega
+alignment           mode           kalign muscle mafft
 consensus           mode           m_coffee
 trimming            mode           trimal
-both_direction      parameter      False
+both_direction      parameter      True
 
 ## General parameter for aligner programs. Sometimes rare aminoacids such as
 ## selenocysteine 'U' or pyrrolysine 'O' cause programs to fail, therefore,

@@ -3,7 +3,7 @@ import os
 import sys
 import argparse
 from module_homology import homology
-from module_utils import readConfig, lookForDirectory, lookForFile
+from module_utils import readConfig, lookForDirectory, lookForFile, printConfig
 
 if __name__ == "__main__":
 
@@ -14,6 +14,9 @@ if __name__ == "__main__":
 
   parser.add_argument("-d", "--db", dest = "dbFile", type = str, default = None,
     help = "Input file containing the target sequence database")
+
+  parser.add_argument("--cds", dest = "cdsFile", type = str, default = None,
+    help = "Input file containing CDS corresponding to input protein seqs")
 
   parser.add_argument("-c", "--config", dest = "configFile", default = None, \
     type = str, help = "Input configuration file")
@@ -47,6 +50,11 @@ if __name__ == "__main__":
     sys.exit(("ERROR: Check input TARGET SEQUENCES file '%s'") % (args.dbFile))
   parameters.setdefault("db_file", args.dbFile)
 
+  if args.cdsFile:
+    if not lookForFile(args.cdsFile):
+      sys.exit(("ERROR: Check input CDS file '%s'") % (args.cdsFile))
+    parameters.setdefault("cds", args.cdsFile)
+
   if not lookForFile(args.configFile):
     sys.exit(("ERROR: Check input CONFIG file '%s'") % (args.configFile))
   parameters.setdefault("config_file", args.configFile)
@@ -70,16 +78,8 @@ if __name__ == "__main__":
   if not "hits" in parameters or int(parameters["hits"]) < 1:
     sys.exit(("ERROR: Check your 'hits' upper limit value"))
 
-  ## Show which parameters has been set-up
-  output = [("| %-15s\t| %s") % (("'%s'") % (key), value) for key,value in \
-    sorted(parameters.iteritems())]
-  maxLen = sorted([len(l) for l in output])[-1] + 12
-
-  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
-  print >> sys.stderr, ("#%s#") % ("Pipeline Configuration".center(maxLen))
-  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
-  print >> sys.stderr, ("%s") % ("\n".join(output))
-  print >> sys.stderr, ("#%s#") % ("#" * maxLen)
+  ## Print all set-up parameters
+  printConfig(parameters)
 
   ## Launch the whole homology process
   homology(parameters)
