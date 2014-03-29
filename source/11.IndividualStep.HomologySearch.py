@@ -30,6 +30,11 @@ if __name__ == "__main__":
   parser.add_argument("-r", "--replace", dest = "replace", default = False, \
     action = "store_true", help = "Over-write any previously generated file")
 
+  ## If no arguments are given, just show the help and finish
+  if len(sys.argv) == 1:
+    parser.print_help()
+    sys.exit(1)
+
   args = parser.parse_args()
 
   ## Assign input parameters directly to the dictionary which will contain all

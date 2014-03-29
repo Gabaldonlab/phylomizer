@@ -27,6 +27,11 @@ if __name__ == "__main__":
   parser.add_argument("-r", "--replace", dest = "replace", default = False, \
     action = "store_true", help = "Over-write any previously generated file")
 
+  ## If no arguments are given, just show the help and finish
+  if len(sys.argv) == 1:
+    parser.print_help()
+    sys.exit(1)
+
   args = parser.parse_args()
 
   ## Assign input parameters directly to the dictionary which will contain all
@@ -63,8 +68,8 @@ if __name__ == "__main__":
   ## Read the other parameters from the input config file
   parameters.update(readConfig(parameters["config_file"]))
 
-  ## Check whether alignment will be reconstructed in one or two directions, i.e
-  ## head and tails.
+  ## Check whether alignment will be reconstructed in one or two directions,
+  ## i.e head and tails.
   if not "both_direction" in parameters:
     parameters["both_direction"] = True
 

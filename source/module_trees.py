@@ -1,11 +1,120 @@
-import sys, os, subprocess as sp
+import os
+# import re
+import sys
+import datetime
+import subprocess as sp
+
+# from time import sleep
+# from hashlib import md5
 from string import strip
-import utils
+# from socket import getfqdn
+# from getpass import getuser
+# from operator import itemgetter
+from module_utils import lookForDirectory, lookForFile, splitSequence, \
+  format_time
 
 ''' Module which implements the functionality for reconstructing phylogenetic
     trees. It contains wrappers to three different programs: PhyML, RAxML &
     FastTree
 '''
+
+def phylogenetic_trees(parameters):
+  ''' Phylogenetic trees are reconstructed according to the input parameters.
+      Once the different files have been generated, the function moves those
+      files into a pre-established filename schema
+  '''
+
+  ## Get output folder/generic filename
+  oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
+
+  current_directory = os.getcwd()
+  ## Change current directory to the output folder. Any temporary file will be
+  ## generated therefore in this folder
+  os.chdir(parameters["out_directory"])
+
+  ## Set output filename and log file
+  if parameters["replace"] and parameters["step"] == 0:
+    logFile = open(oFile + ".log", "w")
+  else:
+    logFile = open(oFile + ".log", "a+")
+
+  start = datetime.datetime.now()
+  date = start.strftime("%H:%M:%S %m/%d/%y")
+  print >> logFile, ("###\n###\tSTEP\tPhylogenetic Tree Reconstruction\tSTART\t"
+    + "%s\n###") % (date)
+  logFile.flush()
+
+  ## Get which program will be used to reconstruct phylogenetic trees. Check
+  ## such program is listed among the available binaries
+  if not "tree" in parameters:
+    sys.exit("ERROR: Check your configuration file. There is no definition for "
+      + "the Phylogenetic TREE reconstruction step")
+
+  program = parameters["tree"][0]
+  if not program in parameters:
+    sys.exit(("ERROR: Selected program '%s' is not available accordding to the "
+      "the configuration file") % (program))
+
+  if not "evol_models" in parameters:
+    sys.exit("ERROR: Check your configuration file. There is no definition for "
+      + "the <evol_models> parameter")
+
+  ## If the evolutionary model list is not appropiately formated, do it
+  if isinstance(parameters["evol_models"], basestring):
+    parameters["evol_models"] = map(strip, parameters["evol_models"].split())
+
+  ## Check if <numb_models parameters is defined and how many models are
+  ## requested to be evaluated
+  if not "numb_models" in parameters or parameters["numb_models"].lower() \
+    == "all":
+    parameters["numb_models"] = len(parameters["evol_models"])
+  parameters["numb_models"] = int(parameters["numb_models"])
+
+  if not parameters["numb_models"] in range(1, len(parameters["evol_models"])):
+    sys.exit(("ERROR: Check how many evolutionary models has been asked to re"
+      + "construct '%d'") % (parameters["numb_models"]))
+
+  ## Check which approaches should be used for the phylogenetic reconstruction
+  ## and whether there are specific program's parameters for them
+  if not "tree_approach" in parameters:
+    parameters["tree_approach"] = ["ml"]
+
+
+  for approanch in tree_approach:
+    if not
+
+
+
+
+
+#~ def PhylogeneticTrees(parameters, approach, evolutionary_models):
+#~
+#~
+#~
+  #~ results = []
+  #~ ## Explore the different models and get the likelihood of each of them
+  #~ for model in evolutionary_models:
+    #~ outFile = ("%s.%s.tree.%s.%s.nw") % (common, program, approach, model)
+    #~ statsFile = ("%s.%s.tree.%s.%s.st") % (common, program, approach, model)
+#~
+    #~ ## Call to the appropiate wrapper depending on the selected
+    #~ if program == "phyml":
+      #~ cmd = ("%s -i %s %s -m %s") % (parameters["phyml"], parameters["inFile"],\
+        #~ parameters[approach], model)
+#~
+      #~ lk = wrapperPhyML(cmd, parameters["inFile"], statsFile, outFile,
+        #~ parameters["log"], parameters["replace"])
+#~
+      #~ results.append((lk, model))
+#~
+  #~ results = [(pair[1], pair[0]) for pair in sorted(results, reverse = True)]
+#~
+  #~ outFile = ("%s.%s.tree.rank.%s") % (common, program, approach)
+  #~ if parameters["replace"] or not utils.lookForFile(outFile):
+    #~ ranking = "\n".join(["\t".join(map(str, pair)) for pair in results])
+    #~ print >> open(outFile, "w"), ranking
+#~
+  #~ return [pair[0] for pair in results]
 
 def wrapperFastTree(cmd, statsFile, logFile):
   ''' Wrapper to call FastTree and generate phylogenetic trees either NJ or ML
@@ -118,48 +227,3 @@ def wrapperRAxML(cmd, suffix, statsFile, outFile, outdirec, logFile):
   oFile.close()
 
   return logLK
-
-def PhylogeneticTrees(parameters, approach, evolutionary_models):
-  ''' A phylogenetic tree is reconstructed using the parameters defined in the
-      function input. Once the different files have been generated, the function
-      moves them following a preestablish scheme
-  '''
-
-  ## Set how output file names will be
-  common = os.path.join(parameters["outdirec"], parameters["prefix"])
-  ## Determine which program will be used to reconstruct trees
-  program = "phyml" if "phyml" in parameters else "fasttree" if "fasttree" in \
-    parameters else "raxml" if "raxml" in parameters else None
-
-  ## If there is not any program for which there is already a wrapper, return
-  if not program:
-    return
-
-  ## If the evolutionary model list is not appropiately formated, do it
-  if type(evolutionary_models) == str:
-    evolutionary_models = map(strip, evolutionary_models.split())
-
-  results = []
-  ## Explore the different models and get the likelihood of each of them
-  for model in evolutionary_models:
-    outFile = ("%s.%s.tree.%s.%s.nw") % (common, program, approach, model)
-    statsFile = ("%s.%s.tree.%s.%s.st") % (common, program, approach, model)
-
-    ## Call to the appropiate wrapper depending on the selected
-    if program == "phyml":
-      cmd = ("%s -i %s %s -m %s") % (parameters["phyml"], parameters["inFile"],\
-        parameters[approach], model)
-
-      lk = wrapperPhyML(cmd, parameters["inFile"], statsFile, outFile,
-        parameters["log"], parameters["replace"])
-
-      results.append((lk, model))
-
-  results = [(pair[1], pair[0]) for pair in sorted(results, reverse = True)]
-
-  outFile = ("%s.%s.tree.rank.%s") % (common, program, approach)
-  if parameters["replace"] or not utils.lookForFile(outFile):
-    ranking = "\n".join(["\t".join(map(str, pair)) for pair in results])
-    print >> open(outFile, "w"), ranking
-
-  return [pair[0] for pair in results]

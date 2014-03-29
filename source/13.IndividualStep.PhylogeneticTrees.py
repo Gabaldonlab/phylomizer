@@ -1,97 +1,85 @@
 #!/usr/bin/python
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-from tree_reconstructor import *
-from utils import *
-import sys, getopt
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+import os
+import sys
+import argparse
+from module_trees import phylogenetic_trees
+from module_utils import readConfig, lookForDirectory, lookForFile, printConfig
 
-### ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-def main(argv):
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  #~ parameters = {
-    #~ "inFile":  "",
-    #~ "verbose":  1,
-    #~ "replace":  False,
-    #~ "numb_models": 2,
-    #~ "outDirec": "./",
-    #~ "phyml": "phyml",
-    #~ "nj_parameters": " -d aa -b 0 -f e -v e -a e -o l -c 4 ",
-    #~ "ml_parameters": " -d aa -b -2 -f e -v e -a e -o tlr -c 4 ",
-    #~ "evol_models": "JTT WAG MtREV VT LG Blosum62 Dayhoff"
-  #~ }
-  parameters = {
-    "inFile": ['file', ''],
-    "config": ['file', ''],
-    "replace": ['bool', False],
-    "outDirec": ['directory', '.']
-  }
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  try:  opts, args = getopt.getopt(argv, "f:d:c:r", ["file=", "dest=", \
-    "replace", "config="])
-  except getopt.GetoptError: sys.exit("ERROR: Check the input parameters")
-
-  for opt, arg in opts:
-    if   opt in ("-f", "--file"):     parameters["inFile"][1]   = str(arg)
-    elif opt in ("-d", "--dest"):     parameters["outDirec"][1] = str(arg)
-    elif opt in ("-c", "--config"):   parameters["config"][1]   = str(arg)
-    elif opt in ("-r", "--replace"):  parameters["replace"][1]  = True
-    #~ elif opt in ("-p", "--prgram"):  parameters["phyml"]       = str(arg)
-    #~ elif opt in ("-v", "--verbose"): parameters["verbose"]     = int(arg)
-    #~ elif opt in ("-n", "--number"):  parameters["numb_models"] = int(arg)
-    else: sys.exit("ERROR: Parameter not Available")
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  if not lookForFile(parameters["config"][1]):
-    sys.exit("ERROR: Config file not available")
-  else: readConfig(parameters["config"][1], parameters)
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  print "Pipeline Configuration\n---"
-  for key in parameters:
-    print key.center(20) + "\t" + str(parameters[key])
-  print "---"
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  #~ if not lookForFile(parameters["inFile"]):
-    #~ sys.exit("ERROR: Input file not available")
-
-  if int(parameters["numb_models"]) > len(parameters["evol_models"].split(" "))\
-    or int(parameters["numb_models"]) < 1:
-    sys.exit("ERROR: The number of models to be evaluated have to be defined "
-             "between 1 and " + str(len(parameters["evol_models"].split(" "))))
-#~
-  #~ parameters["outDirec"] = os.path.abspath(parameters["outDirec"])
-  #~ if not lookForDirectory(parameters["outDirec"]):
-      #~ sys.exit("ERROR: It is impossible to create the output directory")
-#~
-  #~ if not lookForProgram(parameters["phyml"]):
-    #~ sys.exit("ERROR: It is impossible to find PHYML")
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  PhylogeneticTrees(parameters["phyml"], parameters["nj_parameters"], "nj",
-    parameters["inFile"], parameters["outDirec"], parameters["evol_models"],
-    parameters["verbose"], parameters["replace"])
-
-  rank = SortingLKs(parameters["inFile"], parameters["outDirec"], "nj",
-    parameters["evol_models"], parameters["verbose"])
-
-  rank = ' ' . join(rank[:int(parameters["numb_models"])])
-
-  PhylogeneticTrees(parameters["phyml"], parameters["ml_parameters"], "ml",
-    parameters["inFile"], parameters["outDirec"], rank, parameters["verbose"],
-    parameters["replace"])
-
-  SortingLKs(parameters["inFile"], parameters["outDirec"], "ml", rank,
-    parameters["verbose"])
-  # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-
-## ***** ***** ***** ***** ***** ***** ***** ***** *****
 if __name__ == "__main__":
-  sys.exit(main(sys.argv[1:]))
+
+  parser = argparse.ArgumentParser()
+
+  parser.add_argument("-i", "--in", dest = "inFile", type = str, default = None,
+    help = "Input file containing the query sequence/s")
+
+  parser.add_argument("-c", "--config", dest = "configFile", default = None, \
+    type = str, help = "Input configuration file")
+
+  parser.add_argument("-o", "--out", dest = "outFolder", type = str, default = \
+    ".", help = "Output folder where all generated files will be dumped")
+
+  parser.add_argument("-p", "--prefix", dest = "prefix", type = str, default = \
+    "", help = "Set the prefix for all output files generated by the pipeline")
+
+  parser.add_argument("-r", "--replace", dest = "replace", default = False, \
+    action = "store_true", help = "Over-write any previously generated file")
+
+  ## If no arguments are given, just show the help and finish
+  if len(sys.argv) == 1:
+    parser.print_help()
+    sys.exit(1)
+
+  args = parser.parse_args()
+
+  ## Assign input parameters directly to the dictionary which will contain all
+  ## current run configuration.
+  parameters = {}
+  parameters.setdefault("replace", args.replace)
+
+  ## Assign which step is being executed. It is useful to know whether the log
+  ## file should be replaced or not - even when the flag "replace" is set
+  parameters.setdefault("step", 0)
+
+  ## Check parameters related to files / directories
+  if not lookForFile(args.inFile):
+    sys.exit(("ERROR: Check input SEQUENCES file '%s'") % (args.inFile))
+  parameters.setdefault("in_file", args.inFile)
+
+  if not lookForFile(args.configFile):
+    sys.exit(("ERROR: Check input CONFIG file '%s'") % (args.configFile))
+  parameters.setdefault("config_file", args.configFile)
+
+  if not lookForDirectory(args.outFolder):
+    sys.exit(("ERROR: Check output folder '%s'") % (args.outFolder))
+  parameters.setdefault("out_directory", os.path.abspath(args.outFolder))
+
+  ## Set output files prefix name depending on input user selection
+  tag = os.path.split(args.inFile)[1].split(".")[0]
+  parameters.setdefault("prefix", args.prefix if args.prefix else tag)
+
+  ## Read the other parameters from the input config file
+  parameters.update(readConfig(parameters["config_file"]))
+
+  ## Print all set-up parameters
+  printConfig(parameters)
+
+  ## Reconstruct the Multiple Sequence Alignment for the input Sequences
+  phylogenetic_trees(parameters)
+
+
+  #~ # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
+  #~ PhylogeneticTrees(parameters["phyml"], parameters["nj_parameters"], "nj",
+    #~ parameters["inFile"], parameters["outDirec"], parameters["evol_models"],
+    #~ parameters["verbose"], parameters["replace"])
+#~
+  #~ rank = SortingLKs(parameters["inFile"], parameters["outDirec"], "nj",
+    #~ parameters["evol_models"], parameters["verbose"])
+#~
+  #~ rank = ' ' . join(rank[:int(parameters["numb_models"])])
+#~
+  #~ PhylogeneticTrees(parameters["phyml"], parameters["ml_parameters"], "ml",
+    #~ parameters["inFile"], parameters["outDirec"], rank, parameters["verbose"],
+    #~ parameters["replace"])
+#~
+  #~ SortingLKs(parameters["inFile"], parameters["outDirec"], "ml", rank,
+    #~ parameters["verbose"])
