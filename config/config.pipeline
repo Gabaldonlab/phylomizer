@@ -136,13 +136,32 @@ trimal_cds          parameter	     -ignorestopcodon
 readal              binary
 
 ### Phylogenetic tree reconstruction program
-#phyml             binary
+tree                mode           phyml
+evol_models         parameter	     JTT WAG MtREV VT LG Blosum62 Dayhoff
+
+
+## If there is no indication about how many models should be tested then all of
+## them will be used for phylogenetic reconstruction. This variable only is
+## useful when the model selection is executed using Neighbour-Joining trees -
+## Otherwise it is advice to set a reduce number of <evol_models> and evaluate
+## all of them to choose the best fitting to the data ones.
+numb_models        parameter	     2 # all
+
+## If there is no indication about which approaches to used, only Maximum
+## Likelihood trees will be reconstructed
+tree_approach       mode           nj ml
 
 ## Parameters for PhyML
-# nj                parameter	-d aa -b 0  -f e -v e -a e -o l -c 4 --no_memory_check
-# ml                parameter	-d aa -b -2 -f e -v e -a e -o tlr -c 4 --no_memory_check
-# evol_models       parameter	JTT WAG MtREV VT LG Blosum62 Dayhoff
+phyml               binary         /home/scapella/Desktop/00.bin/phyml # phyml_patched_20131112
+phyml_params        parameter      -d aa -f e -v e -a e -c 4 --no_memory_check
 
-## Number of evolutionary models to reconstruct on a ML framework
-## It's only useful when a NJ-based model selection is used
-numb_models       parameter	2
+## You can define generic parameters which will be used for all approaches and
+## then parameters that will be approach specific
+nj                  parameter	     -b  0 -o l
+ml                  parameter	     -b -2 -o tlr
+
+# codonphyml          binary
+# codonphyml_params   parameter      -d codon -b -2 -fmodel F3X4 -t e -f e
+# codonphyml_params   parameter      -w DGAMMA -wclasses 3 -o tlr
+
+## evol_models         parameter	     GY

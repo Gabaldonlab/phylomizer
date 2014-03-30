@@ -1,17 +1,14 @@
 import os
 import re
 import sys
-import tempfile
 import datetime
 import subprocess as sp
 
 from Bio import SeqIO
-from time import sleep
 from hashlib import md5
 from string import strip
 from socket import getfqdn
 from getpass import getuser
-from operator import itemgetter
 from module_utils import lookForDirectory, lookForFile, splitSequence, \
   format_time
 
