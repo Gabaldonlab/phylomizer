@@ -18,6 +18,17 @@ from module_utils import lookForDirectory, lookForFile, splitSequence, \
     FastTree
 '''
 
+## Exit code meanings
+##  80: Not enough sequences
+exit_codes = {
+  "phyml":          96,    ##  96: Problems associated to PhyML execution
+  "codonphyml":     97,    ##  97: Problems associated to CodonPhyML execution
+  "raxml":          98,    ##  98: Problems associated to RAxML execution
+  "fasttree":       99,    ##  99: Problems associated to FastTree execution
+
+  "generic":        95,    ##  95: Program not supported
+}
+
 def phylogenetic_trees(parameters):
   ''' Phylogenetic trees are reconstructed according to the input parameters.
       Once the different files have been generated, the function moves those
@@ -75,7 +86,7 @@ def phylogenetic_trees(parameters):
     parameters["numb_models"] = len(parameters["evol_models"])
   parameters["numb_models"] = int(parameters["numb_models"])
 
-  if not parameters["numb_models"] in range(1, len(parameters["evol_models"])):
+  if not parameters["numb_models"] in range(1,len(parameters["evol_models"])+1):
     sys.exit(("ERROR: Check how many evolutionary models has been asked to re"
       + "construct '%d'") % (parameters["numb_models"]))
 
@@ -118,8 +129,21 @@ def phylogenetic_trees(parameters):
       out_file = ("%s.%s.tree.%s.%s.nw") % (oFile, prog, approach, model)
       stats_file = ("%s.%s.tree.%s.%s.st") % (oFile, prog, approach, model)
 
-      if prog == "phyml":
-        execution_params = ("%s -m %s") % (exec_params, model)
+      if prog in ["phyml", "codonphyml"]:
+        exec_params = ("%s -m %s") % (exec_params, model)
+
+      elif prog in ["fasttree"]:
+        ## On FastTree is selected by default JTT model for AAs - so we don't
+        ## set-up that model
+        if model.lower() != "jtt":
+          exec_params = ("%s -%s") % (exec_params, model)
+
+      elif prog in ["raxml"]:
+        ## -n run name - it couldnot contain "/"
+        ## -p randon number
+        ## -s input alignment name
+        exec_params = ("%s%s") % (exec_params, model)
+
 
 
       if perform_tree(prog, binary, exec_params, parameters["in_file"],
@@ -151,10 +175,6 @@ def phylogenetic_trees(parameters):
 #~
   #~ return [pair[0] for pair in results]
 
-
-
-
-
 def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
   logFile, replace):
 
@@ -168,8 +188,12 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
   if lookForFile(out_file) and not replace:
     return False
 
-  if label == "phyml":
+  if label in ["phyml", "codonphyml"]:
     cmd = ("%s -i %s %s") % (binary, in_file, parameters)
+
+  elif label in ["fasttree"]:
+    cmd = ("%s %s -log %s -out %s %s") % (binary, parameters, out_file, \
+      stats_file, in_file)
 
   else:
     sys.exit(exit_codes["generic"])
@@ -202,19 +226,24 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
 
   ## Process program's output and rename output files according to our own
   ## scheme
-  if label == "phyml":
+  if label in ["phyml", "codonphyml"]:
     try:
-      sp.call(("mv %s_phyml_tree.txt %s") % (in_file, out_file), shell = True)
-      sp.call(("mv %s_phyml_stats.txt %s") % (in_file, stats_file), shell = True)
+      sp.call(("mv %s_%s_tree.txt %s") % (in_file, label, out_file), shell = \
+        True)
+      sp.call(("mv %s_%s_stats.txt %s") % (in_file, label, stats_file), shell =
+        True)
     except OSError:
-      sys.exit("ERROR: Impossible to rename PhyML output files")
+      print >> sys.stderr, ("ERROR: Impossible to rename %s output files") \
+        % (label.upper())
+      sys.exit(exit_codes[label])
 
-  elif label == "raxml":
+  elif label in ["raxml"]:
     try:
       sp.call(("mv RAxML_bestTree%s %s") % (suffix, outFile), shell = True)
       sp.call(("mv RAxML_info%s %s") % (suffix, statsFile), shell = True)
     except OSError:
-      sys.exit("ERROR: Impossible to rename RAxML output files")
+      print >> sys.stderr, ("ERROR: Impossible to rename RAxML output files")
+      sys.exit(exit_codes[label])
 
     oFile = open(statsFile, "a+")
     for oth_file in utils.listDirectory(outdirec, suffix):
@@ -225,11 +254,7 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
       sp.call(("rm -f %s") % (oth_file), shell = True)
     oFile.close()
 
-
   return True
-
-
-
 
 def get_likelihood(label):
 
@@ -264,35 +289,3 @@ def get_likelihood(label):
 
   ## Return the likelihood value for the current tree
   return logLK
-
-
-
-
-
-
-
-
-
-
-
-
-
-def wrapperFastTree(cmd, statsFile, logFile):
-  ''' Wrapper to call FastTree and generate phylogenetic trees either NJ or ML
-      ones
-  '''
-
-  ## Run Fast Tree
-  ## Depending on whether there is a file descriptor open for capturing program
-  ## output or not, we will use two different calls
-  try:
-    if logFile:
-      process = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
-    else:
-      process = sp.Popen(cmd, shell = True)
-  except OSError, e:
-    sys.exit(("ERROR: Execution failed for FastTree\n###\tCMD\t%s\t###\tReport:"
-      + "\t%s") % (cmd, str(e)))
-
-  if process.wait() != 0:
-    sys.exit("ERROR: Execution failed for FastTree")
