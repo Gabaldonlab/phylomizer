@@ -1,0 +1,42 @@
+### Phylogenetic tree reconstruction program
+tree                mode           raxml # fasttree # phyml
+# evol_models         parameter	     JTT WAG MtREV VT LG Blosum62 Dayhoff
+# evol_models         parameter	     wag jtt
+evol_models         parameter	     DAYHOFF DCMUT JTT MTREV WAG RTREV CPREV VT BLOSUM62 MTMAM LG MTART MTZOA
+
+
+## If there is no indication about how many models should be tested then all of
+## them will be used for phylogenetic reconstruction. This variable only is
+## useful when the model selection is executed using Neighbour-Joining trees -
+## Otherwise it is advice to set a reduce number of <evol_models> and evaluate
+## all of them to choose the best fitting to the data ones.
+numb_models        parameter	     all
+
+## If there is no indication about which approaches to used, only Maximum
+## Likelihood trees will be reconstructed
+# tree_approach       mode           nj ml
+tree_approach       mode           ml
+
+## Parameters for PhyML
+phyml               binary         /home/scapella/Desktop/00.bin/phyml # phyml_patched_20131112
+phyml_params        parameter      -d aa -f e -v e -a e -c 4 --no_memory_check
+
+## Parameters for FastTree
+fasttree            binary        /home/scapella/git/phylomizer/bin/FastTree
+fasttree_params     parameter     -gamma
+
+
+## Parameters for RAxML
+raxml               binary        /home/scapella/Desktop/00.bin/raxmlHPC-AVX
+raxml_params        parameter     PROTGAMMAI
+
+## You can define generic parameters which will be used for all approaches and
+## then parameters that will be approach specific
+nj                  parameter	     -b  0 -o l
+ml                  parameter	     # -b -2 -o tlr
+
+# codonphyml          binary
+# codonphyml_params   parameter      -d codon -b -2 -fmodel F3X4 -t e -f e
+# codonphyml_params   parameter      -w DGAMMA -wclasses 3 -o tlr
+
+## evol_models         parameter	     GY
