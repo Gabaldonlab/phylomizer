@@ -131,7 +131,14 @@ def listDirectory(directory, fileExtList):
   '''
   Get list of file info objects for files of particular extensions
   '''
-  fileList = [os.path.normcase(f) for f in os.listdir(directory)]
+
+  ## Add a "." to the file extension variable if it doesn't contain it
+  if fileExtList[0] != ".":
+    fileExtList = "." + fileExtList
+
+  ## Keep only files excluding directories
+  fileList = [os.path.normcase(f) for f in os.listdir(directory) \
+    if os.path.isfile(f)]
   return [ os.path.join(directory, f) for f in fileList \
            if os.path.splitext(f)[1] in fileExtList ]
 

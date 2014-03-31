@@ -3,10 +3,12 @@ import sys
 import tempfile
 import datetime
 import subprocess as sp
+
 from Bio import SeqIO
 from hashlib import md5
 from socket import getfqdn
 from string import strip, capitalize, ljust
+from module_alignment import convertInputFile_Format
 from module_utils import lookForDirectory, lookForFile, splitSequence, \
   parseComments, format_time, sort_blast_hits, sort_hmmer_hits
 
@@ -240,9 +242,8 @@ def hmmer(parameters, logFile):
 
     ## Create a temporary FASTA file which will be used as input for HMMBuild
     TEMPFILE = tempfile.NamedTemporaryFile()
-    cmd = ("%s -in %s -out %s -fasta") % (parameters["readal"], \
-      parameters["in_file"], TEMPFILE.name)
-    sp.call(cmd, shell = True)
+    convertInputFile_Format("readal", parameters["readal"], parameters["in_file"],
+      TEMPFILE.name, "fasta", logFile, parameters["replace"])
     TEMPFILE.flush()
 
     ## Generate the profile

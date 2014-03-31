@@ -130,38 +130,67 @@ m_coffee_params     parameter      -n_core 1 -output fasta -quiet
 trimal              binary
 trimal_params       parameter	     -phylip -gt 0.1
 trimal_compare      parameter	     -ct 0.1667
-trimal_cds          parameter	     -ignorestopcodon
+trimal_cds          parameter	     -splitbystopcodon
 
 ## Alignment and Sequences files manipulation
 readal              binary
 
 ### Phylogenetic tree reconstruction program
-tree                mode           phyml
-evol_models         parameter	     JTT WAG MtREV VT LG Blosum62 Dayhoff
+tree                mode           codonphyml
+## Evolutionary models for PhyML
+## evol_models         parameter	     JTT WAG MtREV VT LG Blosum62 Dayhoff
+## Additional evolutionary models for PhyML
+## evol_models         parameter	     DCMut RtREV CpREV MtMam MtArt
 
+## Evolutionary model for CodonPhyML - Codons
+evol_models         parameter	     GY
+
+## Evolutionary model for FastTree - AminoAcids
+## evol_models         parameter	     wag jtt
+
+## Evolutionary model for RAxML - AminoAcids
+## evol_models         parameter	     JTT WAG MTREV VT LG BLOSUM62 DAYHOFF
+## Additional models
+## evol_models         parameter	     DCMUT RTREV CPREV MTMAM MTART MTZOA
 
 ## If there is no indication about how many models should be tested then all of
 ## them will be used for phylogenetic reconstruction. This variable only is
 ## useful when the model selection is executed using Neighbour-Joining trees -
 ## Otherwise it is advice to set a reduce number of <evol_models> and evaluate
 ## all of them to choose the best fitting to the data ones.
-numb_models        parameter	     2 # all
+numb_models        parameter	     1
 
 ## If there is no indication about which approaches to used, only Maximum
 ## Likelihood trees will be reconstructed
 tree_approach       mode           nj ml
 
+## You can include approach-independt parameters for each program using the
+## <parameter> '_params' or you can include specific parameters for each of
+## approaches using specific parameters for that - e.g. specific parameters
+## for phyml for the <nj> and <ml> steps
+
 ## Parameters for PhyML
-phyml               binary         /home/scapella/Desktop/00.bin/phyml # phyml_patched_20131112
+phyml               binary         phyml_patched_20131112
 phyml_params        parameter      -d aa -f e -v e -a e -c 4 --no_memory_check
 
+## Parameters for CodonPhyML
+codonphyml          binary         codonphyml_201304.11
+codonphyml_params   parameter      -d codon -b -2 -fmodel F3X4 -t e -f e
+codonphyml_params   parameter      -w DGAMMA -wclasses 3 -o tlr
+
+## Parameters for FastTree
+fasttree            binary        /home/scapella/git/phylomizer/bin/FastTree
+fasttree_params     parameter     -gamma
+
+## Parameters for RAxML - there is an specific parameter for RAxML to add a
+## suffix to the model name - it is usually a 'X' or 'F' but check RAxML manual
+## for more information/options
+raxml               binary        raxmlHPC-AVX
+raxml_params        parameter     -m PROTGAMMAI
+raxml_model_suffix  parameter     F
+
 ## You can define generic parameters which will be used for all approaches and
-## then parameters that will be approach specific
+## then parameters that will be approach specific - If there is no specific
+## options for a given step, you can skip those parameters
 nj                  parameter	     -b  0 -o l
 ml                  parameter	     -b -2 -o tlr
-
-# codonphyml          binary
-# codonphyml_params   parameter      -d codon -b -2 -fmodel F3X4 -t e -f e
-# codonphyml_params   parameter      -w DGAMMA -wclasses 3 -o tlr
-
-## evol_models         parameter	     GY
