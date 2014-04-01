@@ -1,202 +1,171 @@
-#!/usr/bin/env python
-
-desc="""
- Phylogenetic tree reconstruction pipeline. It comprises three main steps:
-   1) Homology search using tools such as BLAST.
-   2) Multiple Sequence Alignment (MSA) including the usage of different
-      aligners and the generation of alignments in different directions,
-      the generation of a meta-alignment and the trimming of these meta-
-      MSA using information from individual alignments.
-   3) Phylogenetic tree reconstruction using fast model selection over NJ
-      trees. It is possible to reconstruct trees using AA, NT or Codons.
-"""
-
-epilog="""Author: Salvador Capella-Gutierrez / salcagu@gmail.com
-Barcelona, 02/01/2013
-"""
+#!/usr/bin/python
 
 """
-Versions:
-- 1.00:
-  > Initial release
+  phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
+  steps followed by a phylogenetist to build a gene family tree with error-control
+  of every step
+
+  Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys, os, argparse, datetime
-import homology, aligner, tree_reconstructor as tree, utils
+desc = """
+  --
+  phylomizer - Copyright (C) 2014  Salvador Capella-Gutierrez, Toni Gabaldon
+  [scapella, tgabaldon]_at_crg.es
 
-def main():
+  This program comes with ABSOLUTELY NO WARRANTY;
+  This is free software, and you are welcome to redistribute it
+  under certain conditions;
+  --
 
-  usage = "%(prog)s -i seed_sequence -c config_file -d output_directory -b " \
-    + "blast_db [options]\n"
+  Phylogenetic tree reconstruction pipeline. It comprises three main steps:
 
-  parser = argparse.ArgumentParser(usage = usage, description = desc,
-    epilog = epilog)
+  1) Homology search using tools such as BLAST or HMMER.
 
-  ## Capture initial parameters
-  parser.add_argument("-i","--in", dest = "inFile", type = str, required = True,
-    help = "Input FASTA file containing the seed sequence which will be used to"
-    + " perform the homology search")
+  2) Multiple Sequence Alignment (MSA) including the usage of different
+     aligners and the generation of alignments in different directions,
+     the generation of a meta-alignment and the trimming of these meta-
+     MSA using information from individual alignments.
 
-  parser.add_argument("-c", "--config", type = str, required = True, help = \
-    "Input <TAB> delimited file containing the pipeline configuration")
+  3) Phylogenetic tree reconstruction using fast model selection over NJ
+     trees. It is possible to reconstruct trees using AA, NT or Codons.
+"""
 
-  parser.add_argument("-b", "--db", type = str, required = True, help = \
-    "Input Sequences DB file containing all sequences which will be scanned "
-    + "looking for homologs")
+import os
+import sys
+import argparse
 
-  parser.add_argument("-l", "--log", default = "", type = str, help = "Define" \
-    + "a log file where all messages will be dumped. Otherwise it will be set "
-    + "automatically using the output directory and the input file name")
+from module_homology import homology
+from module_alignments import alignment
+from module_trees import phylogenetic_trees
+from module_utils import readConfig, lookForDirectory, lookForFile, printConfig
 
-  parser.add_argument("-p", "--prefix", default = "", type = str, help = \
-    "Define the output files prefix. By default it is taken the input file name"
-    + "until the first '.'")
+## Get dinamically version
+from _version import get_versions
+__version = get_versions()['version']
+del get_versions
 
-  parser.add_argument("-o", "--outdir", default = os.getcwd(), type = str, \
-    help = "Define a directory where output files will be stored")
+if __name__ == "__main__":
 
-  parser.add_argument("-r", "--replace", default = False, action = "store_true",
-    help = "Overwrite any previously generated file on the output directory")
+  usage = ("\n\npython %(prog)s -i seed_sequence/s -c config_file -d output_"
+    + "directory -b sequences_db [other_options]\n")
 
-  parser.add_argument("--compress", default = False, action = "store_true",
-    help = "Compress intermediate files on .gz format")
+  parser = argparse.ArgumentParser(description = desc, usage = usage,
+    formatter_class = argparse.RawTextHelpFormatter)
 
-  parser.add_argument("-v", "--verbose", default = True, action = "store_false")
-  parser.add_argument("--version", action = "version", version ='%(prog)s v1.0')
+  parser.add_argument("-i", "--in", dest = "inFile", type = str, default = None,
+    help = "Input file containing the query sequence/s")
+
+  parser.add_argument("-d", "--db", dest = "dbFile", type = str, default = None,
+    help = "Input file containing the target sequence database")
+
+  parser.add_argument("--cds", dest = "cdsFile", type = str, default = None,
+    help = "Input file containing CDS corresponding to input protein seqs")
+
+  parser.add_argument("-c", "--config", dest = "configFile", default = None, \
+    type = str, help = "Input configuration file")
+
+  parser.add_argument("-o", "--out", dest = "outFolder", type = str, default = \
+    ".", help = "Output folder where all generated files will be dumped")
+
+  parser.add_argument("-p", "--prefix", dest = "prefix", type = str, default = \
+    "", help = "Set the prefix for all output files generated by the pipeline")
+
+  parser.add_argument("-r", "--replace", dest = "replace", default = False, \
+    action = "store_true", help = "Over-write any previously generated file")
+
+  parser.add_argument("--version", action = "version", version ='%(prog)s \"' \
+    + __version + "\"")
+
+  ## If no arguments are given, just show the help and finish
+  if len(sys.argv) == 1:
+    parser.print_help()
+    sys.exit(1)
 
   args = parser.parse_args()
 
+  ## Assign input parameters directly to the dictionary which will contain all
+  ## current run configuration.
   parameters = {}
-  ## Check input files and, if OK, assign them to an appropiate structure
-
-  if not os.path.isfile(args.inFile):
-    sys.exit(("\nERROR: Please check your input SEED Sequence file '%s'\n") % \
-      (args.inFile))
-  parameters.setdefault("inFile", args.inFile)
-
-  if not os.path.isfile(args.config):
-    sys.exit(("\nERROR: Please check your input Pipeline Config file '%s'\n") \
-      % (args.config))
-  parameters.setdefault("config", args.config)
-
-  if not os.path.isfile(args.db):
-    sys.exit(("\nERROR: Please check your input Sequences DB file '%s'\n") % \
-      (args.db))
-  parameters.setdefault("db", args.db)
-
-  if not utils.lookForDirectory(args.outdir):
-    sys.exit(("\nERROR: Check your output directory '%s'") % (args.outdir))
-  parameters.setdefault("outdirec", args.outdir)
-
-  parameters.setdefault("compress", args.compress)
   parameters.setdefault("replace", args.replace)
-  parameters.setdefault("verbose", args.verbose)
 
-  ## Set the output file prefix
-  prefixName = os.path.split(parameters["inFile"])[1].split(".")[0]
-  parameters.setdefault("prefix", args.prefix if args.prefix else prefixName)
+  ## Assign which step is being executed. It is useful to know whether the log
+  ## file should be replaced or not - even when the flag "replace" is set
+  parameters.setdefault("step", 0)
 
-  ## Set the log file
-  refFile = args.log if args.log else ("%s.log") % \
-    (os.path.join(parameters["outdirec"], parameters["prefix"]))
+  ## Check parameters related to files / directories
+  if not lookForFile(args.inFile):
+    sys.exit(("ERROR: Check input QUERY SEQUENCE/s file '%s'") % (args.inFile))
+  parameters.setdefault("in_file", args.inFile)
 
-  ## If log information is requested, open the output stream
-  parameters["log"] = open(refFile, "w" if parameters["replace"] else "a+") \
-    if parameters["verbose"] else None
+  if not lookForFile(args.dbFile):
+    sys.exit(("ERROR: Check input TARGET SEQUENCES file '%s'") % (args.dbFile))
+  parameters.setdefault("db_file", args.dbFile)
 
-  parameters["log"] = sys.stdout
+  if args.cdsFile:
+    if not lookForFile(args.cdsFile):
+      sys.exit(("ERROR: Check input CDS file '%s'") % (args.cdsFile))
+    parameters.setdefault("cds", args.cdsFile)
 
-  ## Read Configuration file and update current structure with the different
-  ## parameters
-  parameters.update(utils.readConfig(args.config))
+  if not lookForFile(args.configFile):
+    sys.exit(("ERROR: Check input CONFIG file '%s'") % (args.configFile))
+  parameters.setdefault("config_file", args.configFile)
 
-  ## Print configuration pipeline
-  if parameters["verbose"]:
-    print >> parameters["log"], ("### %s\n%s") % \
-      ("Pipeline General Configuration".center(90), "#" * 90)
-    for key,value in sorted(parameters.iteritems()):
-      print >> parameters["log"], ("### %30s\t%s") % (key.center(30), value)
-    print >> parameters["log"], ("%s") % ("#" * 90)
+  if not lookForDirectory(args.outFolder):
+    sys.exit(("ERROR: Check output folder '%s'") % (args.outFolder))
+  parameters.setdefault("out_directory", os.path.abspath(args.outFolder))
 
-  ## Register when each process starts
-  general_start = datetime.datetime.now()
-  if parameters["verbose"]:
-    date = general_start.strftime("%H:%M:%S %m/%d/%y")
-    print >> parameters["log"], ("### Pipeline starts\n### Homology search\n"
-      + "### %s") % (date)
+  ## Set output files prefix name depending on input user selection
+  tag = os.path.split(args.inFile)[1].split(".")[0]
+  parameters.setdefault("prefix", args.prefix if args.prefix else tag)
 
-  ## Homology search
-  step_start = general_start
-  #~ resulting_file = ""
-  #~ resulting_file = homology.blast(parameters)
-  step_end = datetime.datetime.now()
+  ## Read the other parameters from the input config file
+  parameters.update(readConfig(parameters["config_file"]))
 
-  if parameters["verbose"]:
-    date = step_end.strftime("%H:%M:%S %m/%d/%y")
-    total = utils.format_time((step_end - step_start).seconds if step_start \
-      else 0)
-    whole = utils.format_time((step_end - general_start).seconds \
-      if general_start else 0)
-    print >> parameters["log"], ("### Pipeline progression\n### Homology search"
-      + "\n### %s\n### Step \t%s\n### Total\t%s") % (date, total, whole)
+  ## Check specific values for input parameters.
+  if not "coverage" in parameters or not (0.0 < float(parameters["coverage"]) \
+    <= 1.0):
+    sys.exit(("ERROR: Check your 'coverage' parameter"))
 
-  ## Multiple Sequence Alignments
-  #~ parameters["inFile"] = resulting_file
-  step_start = datetime.datetime.now()
-  #~ resulting_file = aligner.AlignerPipeline(parameters)
-  step_end = datetime.datetime.now()
+  if not "hits" in parameters or int(parameters["hits"]) < 1:
+    sys.exit(("ERROR: Check your 'hits' upper limit value"))
 
-  if parameters["verbose"]:
-    date = step_end.strftime("%H:%M:%S %m/%d/%y")
-    total = utils.format_time((step_end - step_start).seconds if step_start \
-      else 0)
-    whole = utils.format_time((step_end - general_start).seconds \
-      if general_start else 0)
-    print >> parameters["log"], ("### Pipeline progression\n### Multiple Sequen"
-      "ce Alignment\n### %s\n### Step \t%s\n### Total\t%s") % (date,total,whole)
+  ## Check whether alignment will be reconstructed in one or two directions, i.e
+  ## head and tails.
+  if not "both_direction" in parameters:
+    parameters["both_direction"] = True
 
-  ## Fast evolutionary model selection based on NJ-trees
-  #~ parameters["inFile"] = resulting_file
-  step_start = datetime.datetime.now()
-  #~ resulting_file = tree.ModelSelection(parameters)
-  step_end = datetime.datetime.now()
+  ## Print all set-up parameters
+  printConfig(parameters)
 
-  #~ PhylogeneticTrees(parameters["phyml"], parameters["nj_parameters"], "nj",
-    #~ parameters["inFile"], parameters["outDirec"], parameters["evol_models"],
-    #~ parameters["verbose"], parameters["replace"])
+  ## Launch the whole homology process - update some values in the parameters
+  ## dictionary. It is needed to perform appropiately the next step
+  parameters.update(homology(parameters))
 
-  if parameters["verbose"]:
-    date = step_end.strftime("%H:%M:%S %m/%d/%y")
-    total = utils.format_time((step_end - step_start).seconds if step_start \
-      else 0)
-    whole = utils.format_time((step_end - general_start).seconds \
-      if general_start else 0)
-    print >> parameters["log"], ("### Pipeline progression\n### Fast evolutiona"
-      + "ry model selection based on Neighbour-Joining trees\n### %s\n### Step "
-      + "\t%s\n### Total\t%s") % (date, total, whole)
+  ## Assign which step is being executed. It is useful to know whether the log
+  ## file should be replaced or not - even when the flag "replace" is set
+  parameters["step"] = 1
 
-  #~ parameters["inFile"] = resulting_file
-  ranked_models = parameters["evol_models"]
+  ## Reconstruct the Multiple Sequence Alignment for the selected sequences
+  parameters.update(alignment(parameters))
 
-  step_start = datetime.datetime.now()
-  tree.PhylogeneticTrees(parameters, "ml", ranked_models)
-  step_end = datetime.datetime.now()
+  ## Assign which step is being executed. It is useful to know whether the log
+  ## file should be replaced or not - even when the flag "replace" is set
+  parameters["step"] = 2
 
-  if parameters["verbose"]:
-    date = step_end.strftime("%H:%M:%S %m/%d/%y")
-    total = utils.format_time((step_end - step_start).seconds if step_start \
-      else 0)
-    whole = utils.format_time((step_end - general_start).seconds \
-      if general_start else 0)
-    print >> parameters["log"], ("### Pipeline progression\n### Phylogenetic "
-      + "tree reconstruction based on a Maximum-Likelihood framework\n### %s\n"
-      + "### Step \t%s\n\n### Total Pipeline\t%s\n") % (date, total, whole)
+  ## Reconstruct the Multiple Sequence Alignment for the input Sequences
+  phylogenetic_trees(parameters)
 
-  ## Close the log output stream
-  if parameters["log"]:
-    parameters["log"].close()
-
-  return 0
-
-if __name__ == "__main__":
-  sys.exit(main())

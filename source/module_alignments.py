@@ -1,3 +1,24 @@
+"""
+  phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
+  steps followed by a phylogenetist to build a gene family tree with error-control
+  of every step
+
+  Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import os
 import re
 import sys
@@ -241,9 +262,17 @@ def alignment(parameters):
         logFile, parameters["replace"]):
         parameters["replace"] = True
 
+      ## Make such untrimmed alignment it is in phylip format
+      convertInputFile_Format("readal", parameters["readal"], out_file,out_file,
+        "phylip", logFile, parameters["replace"])
+
     ## Set the current output alignment as the one generated at a previous step
     else:
       out_file = generated_alignments.pop()
+
+      ## Make such untrimmed alignment it is in phylip format
+      convertInputFile_Format("readal", parameters["readal"], out_file,out_file,
+        "phylip", logFile, parameters["replace"])
 
     ## Either we have to trim the final alignment or we have to backtranslate to
     ## codons/nucleotides, we will need to check for a program - hopefully
@@ -270,6 +299,10 @@ def alignment(parameters):
       if (trimmingAlignment(prog, binary, params, out_file + "_cds", logFile,
         parameters["replace"], in_file = out_file, cds = parameters["cds"])):
         parameters["replace"] = True
+
+      ## Make such untrimmed alignment it is in phylip format
+      convertInputFile_Format("readal", parameters["readal"], out_file + "_cds",
+        out_file + "_cds" ,"phylip", logFile, parameters["replace"])
 
     ## If set, trim resulting alignment
     if "trimming" in parameters:
