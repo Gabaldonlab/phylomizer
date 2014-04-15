@@ -87,6 +87,7 @@ def homology(parameters):
     ## Check if BLAST DB associated files already exist or not
     for extension in ["hr", "in", "sq"]:
       filename = ("%s.%s%s") % (parameters["db_file"], dt, extension)
+
       ## If the input file doesn't exist check whether input database has been
       ## split into different volumes
       if not lookForFile(filename):

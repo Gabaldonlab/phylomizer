@@ -63,16 +63,19 @@ def readConfig(input_file):
       args = lookForProgram(param) if not args else lookForProgram(args)
       if not args:
         sys.exit(("ERROR: Impossible to find the binary for '%s'") % (param))
+      args = os.path.abspath(args)
 
     ## Check whether current file exist
     elif tag == "file":
       if not lookForFile(args):
         sys.exit(("ERROR: Check your input file '%s'") % (args))
+      args = os.path.abspath(args)
 
     ## Check directories exist and are writable
     elif tag == "directory":
       if not lookForDirectory(args):
         sys.exit(("ERROR: Check your input directory '%s'") % (args))
+      args = os.path.abspath(args)
 
     ## Since the 'mode' tag define which programs should be executed in a given
     ## step, convert the arguments line into a line

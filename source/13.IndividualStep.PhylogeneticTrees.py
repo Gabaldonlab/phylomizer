@@ -91,11 +91,11 @@ if __name__ == "__main__":
   ## Check parameters related to files / directories
   if not lookForFile(args.inFile):
     sys.exit(("ERROR: Check input SEQUENCES file '%s'") % (args.inFile))
-  parameters.setdefault("in_file", args.inFile)
+  parameters.setdefault("in_file", os.path.abspath(args.inFile))
 
   if not lookForFile(args.configFile):
     sys.exit(("ERROR: Check input CONFIG file '%s'") % (args.configFile))
-  parameters.setdefault("config_file", args.configFile)
+  parameters.setdefault("config_file", os.path.abspath(args.configFile))
 
   if not lookForDirectory(args.outFolder):
     sys.exit(("ERROR: Check output folder '%s'") % (args.outFolder))
@@ -113,21 +113,3 @@ if __name__ == "__main__":
 
   ## Reconstruct the Multiple Sequence Alignment for the input Sequences
   phylogenetic_trees(parameters)
-
-
-  #~ # ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ***** ****
-  #~ PhylogeneticTrees(parameters["phyml"], parameters["nj_parameters"], "nj",
-    #~ parameters["inFile"], parameters["outDirec"], parameters["evol_models"],
-    #~ parameters["verbose"], parameters["replace"])
-#~
-  #~ rank = SortingLKs(parameters["inFile"], parameters["outDirec"], "nj",
-    #~ parameters["evol_models"], parameters["verbose"])
-#~
-  #~ rank = ' ' . join(rank[:int(parameters["numb_models"])])
-#~
-  #~ PhylogeneticTrees(parameters["phyml"], parameters["ml_parameters"], "ml",
-    #~ parameters["inFile"], parameters["outDirec"], rank, parameters["verbose"],
-    #~ parameters["replace"])
-#~
-  #~ SortingLKs(parameters["inFile"], parameters["outDirec"], "ml", rank,
-    #~ parameters["verbose"])

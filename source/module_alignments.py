@@ -133,6 +133,7 @@ def alignment(parameters):
   if numSeqs < 3:
     print >> logFile, ("### INFO: It is necessary, at least, 3 sequences to "
       + "to reconstruct an alignment (%d)") % (numSeqs)
+    sys.exit(80)
 
   ## Otherwise, process the input sequence, substitute rare amino-acids and
   ## reverse input sequences when neccesary

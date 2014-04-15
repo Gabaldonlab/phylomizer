@@ -100,20 +100,20 @@ if __name__ == "__main__":
   ## Check parameters related to files / directories
   if not lookForFile(args.inFile):
     sys.exit(("ERROR: Check input QUERY SEQUENCE/s file '%s'") % (args.inFile))
-  parameters.setdefault("in_file", args.inFile)
+  parameters.setdefault("in_file", os.path.abspath(args.inFile))
 
   if not lookForFile(args.dbFile):
     sys.exit(("ERROR: Check input TARGET SEQUENCES file '%s'") % (args.dbFile))
-  parameters.setdefault("db_file", args.dbFile)
+  parameters.setdefault("db_file", os.path.abspath(args.dbFile))
 
   if args.cdsFile:
     if not lookForFile(args.cdsFile):
       sys.exit(("ERROR: Check input CDS file '%s'") % (args.cdsFile))
-    parameters.setdefault("cds", args.cdsFile)
+    parameters.setdefault("cds", os.path.abspath(args.cdsFile))
 
   if not lookForFile(args.configFile):
     sys.exit(("ERROR: Check input CONFIG file '%s'") % (args.configFile))
-  parameters.setdefault("config_file", args.configFile)
+  parameters.setdefault("config_file", os.path.abspath(args.configFile))
 
   if not lookForDirectory(args.outFolder):
     sys.exit(("ERROR: Check output folder '%s'") % (args.outFolder))
