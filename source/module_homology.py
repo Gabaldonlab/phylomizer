@@ -33,6 +33,9 @@ from module_alignments import convertInputFile_Format
 from module_utils import lookForDirectory, lookForFile, splitSequence, \
   parseComments, format_time, sort_blast_hits, sort_hmmer_hits
 
+## Exit code meanings
+##  80: Not enough sequences
+
 def homology(parameters):
 
   ## Get output folder/generic filename
@@ -100,9 +103,24 @@ def homology(parameters):
     ## If the homology search step should be perfomed using BLAST, call the
     ## appropiate function
     blast(parameters, logFile)
+    tag = "blast"
 
   elif parameters["homology"][0] in ["phmmer", "jackhmmer", "hmmer_search"]:
     hmmer(parameters, logFile)
+    ## Set the tag for the output files
+    tag = "hmmer"
+
+  ## Check whether the output file contains any result
+  homologs = 0
+  inFile = ("%s.homology.%s.out") % (oFile, tag)
+  for line in open(inFile, "rU"):
+    if not line.strip() or line.startswith("#"):
+      continue
+    homologs += 1
+  if not homologs:
+    print >> sys.stderr, ("INFO: NO Homologous sequences found for '%s'") % \
+      parameters["prefix"]
+    sys.exit(80)
 
   ## Filter homology search data. A dictionary containing selected sequences,
   ## including the sequences themselves
