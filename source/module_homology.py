@@ -1,14 +1,40 @@
+"""
+  phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
+  steps followed by a phylogenetist to build a gene family tree with error-control
+  of every step
+
+  Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import os
 import sys
 import tempfile
 import datetime
 import subprocess as sp
+
 from Bio import SeqIO
 from hashlib import md5
 from socket import getfqdn
 from string import strip, capitalize, ljust
+from module_alignments import convertInputFile_Format
 from module_utils import lookForDirectory, lookForFile, splitSequence, \
   parseComments, format_time, sort_blast_hits, sort_hmmer_hits
+
+## Exit code meanings
+##  80: Not enough sequences
 
 def homology(parameters):
 
@@ -64,6 +90,7 @@ def homology(parameters):
     ## Check if BLAST DB associated files already exist or not
     for extension in ["hr", "in", "sq"]:
       filename = ("%s.%s%s") % (parameters["db_file"], dt, extension)
+
       ## If the input file doesn't exist check whether input database has been
       ## split into different volumes
       if not lookForFile(filename):
@@ -76,9 +103,24 @@ def homology(parameters):
     ## If the homology search step should be perfomed using BLAST, call the
     ## appropiate function
     blast(parameters, logFile)
+    tag = "blast"
 
   elif parameters["homology"][0] in ["phmmer", "jackhmmer", "hmmer_search"]:
     hmmer(parameters, logFile)
+    ## Set the tag for the output files
+    tag = "hmmer"
+
+  ## Check whether the output file contains any result
+  homologs = 0
+  inFile = ("%s.homology.%s.out") % (oFile, tag)
+  for line in open(inFile, "rU"):
+    if not line.strip() or line.startswith("#"):
+      continue
+    homologs += 1
+  if not homologs:
+    print >> sys.stderr, ("INFO: NO Homologous sequences found for '%s'") % \
+      parameters["prefix"]
+    sys.exit(80)
 
   ## Filter homology search data. A dictionary containing selected sequences,
   ## including the sequences themselves
@@ -240,9 +282,8 @@ def hmmer(parameters, logFile):
 
     ## Create a temporary FASTA file which will be used as input for HMMBuild
     TEMPFILE = tempfile.NamedTemporaryFile()
-    cmd = ("%s -in %s -out %s -fasta") % (parameters["readal"], \
-      parameters["in_file"], TEMPFILE.name)
-    sp.call(cmd, shell = True)
+    convertInputFile_Format("readal", parameters["readal"], parameters["in_file"],
+      TEMPFILE.name, "fasta", logFile, parameters["replace"])
     TEMPFILE.flush()
 
     ## Generate the profile

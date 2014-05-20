@@ -1,17 +1,38 @@
+"""
+  phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
+  steps followed by a phylogenetist to build a gene family tree with error-control
+  of every step
+
+  Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import os
-# import re
 import sys
 import datetime
+import tempfile
 import subprocess as sp
 
-# from time import sleep
-# from hashlib import md5
-from string import strip, lower
 from socket import getfqdn
-# from getpass import getuser
-# from operator import itemgetter
+from random import randint
+from operator import itemgetter
+from string import strip, lower
+from module_alignments import check_count_sequences, replaceRareAminoAcids, \
+  convertInputFile_Format, getFileFormat
 from module_utils import lookForDirectory, lookForFile, splitSequence, \
-  format_time
+  format_time, listDirectory
 
 ''' Module which implements the functionality for reconstructing phylogenetic
     trees. It contains wrappers to three different programs: PhyML, RAxML &
@@ -90,6 +111,11 @@ def phylogenetic_trees(parameters):
     sys.exit(("ERROR: Check how many evolutionary models has been asked to re"
       + "construct '%d'") % (parameters["numb_models"]))
 
+  ## Check whether "readAl" is available or not. It is useful for sequences
+  ## manipulation independently of the input format.
+  if not "readal" in parameters:
+    sys.exit("ERROR: Check your CONFIG file. 'readAl' is not available")
+
   ## Check which approaches should be used for the phylogenetic reconstruction
   ## and whether there are specific program's parameters for them
   if not "tree_approach" in parameters:
@@ -111,6 +137,46 @@ def phylogenetic_trees(parameters):
   if others != set():
     tree_approaches += sorted(others)
 
+  ## Check input alignment when using RAxML since it may crash when
+  ## Selenocysteines or Pyrrolysines are present in the input alignment
+  if prog in ["raxml"]:
+
+    ## Create a temporary FASTA file which will be used as input for HMMBuild
+    TEMPFILE = tempfile.NamedTemporaryFile()
+    convertInputFile_Format("readal", parameters["readal"], parameters["in_file"],
+      TEMPFILE.name, "fasta", logFile, parameters["replace"])
+    TEMPFILE.flush()
+
+    ## Analyze input alignment looking for the presence of Selenocysteines /
+    ## Pyrrolysines
+    numSeqs, selenocys, pyrrolys = check_count_sequences(TEMPFILE.name)
+
+    ## If Selenocysteines or Pyrrolysines are present, substitute them by "X"
+    if selenocys or pyrrolys:
+      out_file = ("%s.no_rare_aa") % (parameters["in_file"])
+
+      if replaceRareAminoAcids(TEMPFILE.name, out_file, parameters["replace"],
+        logFile, "U:X O:X"):
+        parameters["replace"] = True
+      parameters["in_file"] = out_file
+    TEMPFILE.close()
+
+  ## When using FastTree force the conversion of input alignment to FASTA format
+  ## since it may crash reading standard interleave PHYLIP format files
+  if prog in ["fasttree"]:
+
+    in_file_format, aligned = getFileFormat("readal", parameters["readal"], \
+      parameters["in_file"], logFile)
+
+    if in_file_format != "fasta":
+      out_file = ("%s.fa") % (parameters["in_file"])
+      if (convertInputFile_Format("readal", parameters["readal"], \
+        parameters["in_file"], out_file, "fasta", logFile,
+        parameters["replace"])):
+        parameters["replace"] = True
+      parameters["in_file"] = out_file
+
+  replace = parameters["replace"]
   selected_models = parameters["evol_models"]
   ## Reconstruct trees for each approach considering evolutionary models order
   ## according their likelihood values
@@ -122,58 +188,98 @@ def phylogenetic_trees(parameters):
 
     ## Format the choosen program's parameters according to the default ones and
     ## the specific ones for the current approach
-    exec_params = ("%s ") % (progr_params)
-    exec_params += parameters[approach] if approach in parameters else ""
+    params = ("%s ") % (progr_params)
+    params += parameters[approach] if approach in parameters else ""
 
     for model in selected_models:
-      out_file = ("%s.%s.tree.%s.%s.nw") % (oFile, prog, approach, model)
-      stats_file = ("%s.%s.tree.%s.%s.st") % (oFile, prog, approach, model)
+      out_file = ("%s.tree.%s.%s.%s.nw") % (oFile, prog, approach, model)
+      stats_file = ("%s.tree.%s.%s.%s.st") % (oFile, prog, approach, model)
 
-      if prog in ["phyml", "codonphyml"]:
-        exec_params = ("%s -m %s") % (exec_params, model)
+      if prog in ["phyml"]:
+        exec_params = ("%s -m %s") % (params, model)
+
+      ## Get additional model -if any- for codons
+      elif prog in ["codonphyml"]:
+        exec_params = ("%s -m %s") % (params, model)
+
+        add_model = [p.split()[1] for p in map(strip, exec_params.split("-")) \
+          if p.startswith("fmodel")]
+
+        if len(add_model) == 1:
+          add_model = add_model.pop()
+          model = ("%s_%s") % (model, add_model)
+          out_file = ("%s.tree.%s.%s.%s.nw") % (oFile, prog, approach, model)
+          stats_file = ("%s.tree.%s.%s.%s.st") % (oFile, prog, approach, model)
 
       elif prog in ["fasttree"]:
         ## On FastTree is selected by default JTT model for AAs - so we don't
         ## set-up that model
-        if model.lower() != "jtt":
-          exec_params = ("%s -%s") % (exec_params, model)
+        exec_params = ("%s -%s") % (params, model) if model.lower() != "jtt" \
+          and model.lower() != "jc" else params
+        model = model.upper()
 
+      ## In the case of RAxML, we would concatenate the model to an specific
+      ## input parameter
       elif prog in ["raxml"]:
-        ## -n run name - it couldnot contain "/"
-        ## -p randon number
-        ## -s input alignment name
-        exec_params = ("%s%s") % (exec_params, model)
+        final_model = model
+        ## It is possible to add some suffixes to the evolutionary models
+        ## in RAxML - There is not better/easy way to code this option
+        if "raxml_model_suffix" in parameters:
+          final_model += parameters["raxml_model_suffix"]
+        exec_params = " ".join([("-%s%s") %(p, final_model if p.startswith("m ")
+          else "") for p in map(strip, params.split("-")) if p])
 
-
-
+      ## Build the phylogenetic tree using any of the available methods and
+      ## register if any downstream file should be redone.
       if perform_tree(prog, binary, exec_params, parameters["in_file"],
         out_file, stats_file, logFile, parameters["replace"]):
-          parameters["replace"] = True
+          replace = True
 
+      ## Get the likelihood for each of the reconstructed models
+      log_lk = get_likelihood(prog, stats_file)
 
+      if not log_lk:
+        print >> sys.stderr, ("ERROR: Impossible to the Log likelihood values "
+          + "for '%s' model using this program '%s'") % (model, prog)
+        sys.exit(exit_codes[prog])
 
-  #~ results = []
-  #~ ## Explore the different models and get the likelihood of each of them
-  #~ for model in evolutionary_models:
-#~
-    #~ ## Call to the appropiate wrapper depending on the selected
-    #~ if program == "phyml":
-      #~ cmd = ("%s -i %s %s -m %s") % (parameters["phyml"], parameters["inFile"],\
-        #~ parameters[approach], model)
-#~
-      #~ lk = wrapperPhyML(cmd, parameters["inFile"], statsFile, outFile,
-        #~ parameters["log"], parameters["replace"])
-#~
-      #~ results.append((lk, model))
-#~
-  #~ results = [(pair[1], pair[0]) for pair in sorted(results, reverse = True)]
-#~
-  #~ outFile = ("%s.%s.tree.rank.%s") % (common, program, approach)
-  #~ if parameters["replace"] or not utils.lookForFile(outFile):
-    #~ ranking = "\n".join(["\t".join(map(str, pair)) for pair in results])
-    #~ print >> open(outFile, "w"), ranking
-#~
-  #~ return [pair[0] for pair in results]
+      results.setdefault(model, log_lk)
+
+    ## Get the models sorted by their likelihood values
+    records = sorted(results.iteritems(), key = itemgetter(1), reverse = True)
+
+    ## If any tree has been generated de novo, update the file containing the
+    ## likelihoods / model values
+    if replace:
+      out_file = open(("%s.tree.%s.rank.%s") % (oFile, prog, approach), "w")
+      print >> out_file, "\n".join([("%s\t%s") % (r[0], r[1]) for r in records])
+      out_file.close()
+
+      ## It also set the replace flag to True to generate again any file on
+      ## downstream steps
+      parameters["replace"] = True
+
+    ## Select a given number of models for the next iteration - if any
+    selected_models = [pair[0] for pair in records[:parameters["numb_models"]]]
+
+    ## Remove the Codon Frequency model from potential new iterations
+    if prog in ["codonphyml"] and add_model:
+      selected_models = [m.replace("_"+ add_model, "") for m in selected_models
+        if m.endswith(add_model)]
+
+  final = datetime.datetime.now()
+  print >> logFile, ("###\n###\tSTEP\tPhylogenetic Tree Reconstruction\tEND\t"
+    + "%s") % (date)
+  total = format_time((final - start).seconds if start else 0)
+  print >> logFile, ("###\tTOTAL Time\tPhylogenetic Tree Reconstruction\t%s"
+    + "\n###") % (total)
+  logFile.close()
+
+  ## Before returning to the main program, get back to the original working
+  ## directory
+  os.chdir(current_directory)
+
+  return parameters
 
 def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
   logFile, replace):
@@ -192,8 +298,15 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
     cmd = ("%s -i %s %s") % (binary, in_file, parameters)
 
   elif label in ["fasttree"]:
-    cmd = ("%s %s -log %s -out %s %s") % (binary, parameters, out_file, \
-      stats_file, in_file)
+    cmd = ("%s %s -log %s -out %s %s") % (binary, parameters, stats_file, \
+      out_file, in_file)
+
+  elif label in ["raxml"]:
+    random_seed = randint(1, 10000)
+    suffix = ("%s_%d") % (label, random_seed)
+
+    cmd = ("%s -n %s -p %d -s %s %s") % (binary, suffix, random_seed, in_file, \
+      parameters)
 
   else:
     sys.exit(exit_codes["generic"])
@@ -208,16 +321,17 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
   logFile.flush()
 
   try:
-    proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
+    proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile,
+      stdin = sp.PIPE)
   except OSError, e:
     print >> sys.stderr, "ERROR: Execution failed: " + str(e)
     sys.exit(exit_codes[label])
+  proc.stdin.write("\n\nY\n")
 
-  ## Press a key until any situation to continue the execution
-  proc.communicate("Y\n")
   if proc.wait() != 0:
     print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
     sys.exit(exit_codes[label])
+
 
   final = datetime.datetime.now()
   total = format_time((final - start).seconds if start else 0)
@@ -239,14 +353,14 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
 
   elif label in ["raxml"]:
     try:
-      sp.call(("mv RAxML_bestTree%s %s") % (suffix, outFile), shell = True)
-      sp.call(("mv RAxML_info%s %s") % (suffix, statsFile), shell = True)
+      sp.call(("mv RAxML_bestTree.%s %s") % (suffix, out_file), shell = True)
+      sp.call(("mv RAxML_info.%s %s") % (suffix, stats_file), shell = True)
     except OSError:
       print >> sys.stderr, ("ERROR: Impossible to rename RAxML output files")
       sys.exit(exit_codes[label])
 
-    oFile = open(statsFile, "a+")
-    for oth_file in utils.listDirectory(outdirec, suffix):
+    oFile = open(stats_file, "a+")
+    for oth_file in listDirectory(os.path.split(stats_file)[0], suffix):
       fileName = os.path.split(oth_file)[1]
       hz_line = "#" * (len(fileName) + 4)
       print >> oFile, ("%s\n%s\n%s") % (hz_line, fileName, hz_line)
@@ -256,36 +370,39 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
 
   return True
 
-def get_likelihood(label):
+def get_likelihood(label, stats_file):
 
-
-  ## PHYML
-  ## Independtly whether the files are exist or not, get the likelihood associate
+  ## Check whether the STATS file is available or not
+  if not lookForFile(stats_file):
+    return None
 
   logLK = None
-  ## Get likelihood value for the execution
-  try:
-    pipe = sp.Popen(("grep 'Log-likelihood:' %s") % (statsFile), shell = True, \
-      stdout = sp.PIPE)
-    logLK = float(map(strip, pipe.stdout.readlines()[0].split())[2])
-  except OSError, e:
-    sys.exit("ERROR: Impossible to get LK values for PhyML run")
-
-  ## RAXML
-  ## Parse output to get the likelihood of the best tree
-  for line in open(statsFile, "rU"):
-    if line.lower().startswith("final") and line.lower().find("score") != -1:
-      logLK = float(map(strip, line.split())[-1])
+  ## PHYML/CodonPhyML
+  if label in ["phyml", "codonphyml"]:
+    for line in open(stats_file, "rU"):
+      if not line.startswith(". Log-likelihood"):
+        continue
+      logLK = float(map(strip, line.split())[2])
+      break
 
   ## FastTree
-    ## Get likelihood values for the current run
-  for line in open(statsFile, "rU"):
-    f = map(strip, line.split("\t"))
-    try:
-      value = float(f[2])
-    except:
+  elif label in ["fasttree"]:
+    for line in open(stats_file, "rU"):
+      if line.lower().find("loglk") == -1:
+        continue
+      f = map(strip, line.split("\t"))
+      try:
+        value = float(f[2])
+      except:
+        continue
+      logLK = value if not logLK or value < logLK else logLK
+
+  ## RAXML
+  for line in open(stats_file, "rU"):
+    if not line.lower().startswith("final") or line.lower().find("score") == -1:
       continue
-    logLK = value if not logLK or value < logLK else logLK
+    logLK = float(map(strip, line.split())[-1])
+    break
 
   ## Return the likelihood value for the current tree
   return logLK

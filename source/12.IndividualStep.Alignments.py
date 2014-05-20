@@ -1,13 +1,58 @@
 #!/usr/bin/python
+
+"""
+  phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
+  steps followed by a phylogenetist to build a gene family tree with error-control
+  of every step
+
+  Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
+desc = """
+  --
+  phylomizer - Copyright (C) 2014  Salvador Capella-Gutierrez, Toni Gabaldon
+  [scapella, tgabaldon]_at_crg.es
+
+  This program comes with ABSOLUTELY NO WARRANTY;
+  This is free software, and you are welcome to redistribute it
+  under certain conditions;
+  --
+
+  Individual script to perform solely the MULTIPLE SEQUENCE ALIGNMENT
+  reconstruction phase from the main pipeline
+"""
+
 import os
 import sys
 import argparse
 from module_alignments import alignment
 from module_utils import readConfig, lookForDirectory, lookForFile, printConfig
 
+## Get dinamically version
+from _version import get_versions
+__version = get_versions()['version']
+del get_versions
+
 if __name__ == "__main__":
 
-  parser = argparse.ArgumentParser()
+  usage = ("\n\npython %(prog)s -i seed_sequence/s -c config_file -d output_"
+    + "directory -b sequences_db [other_options]\n")
+
+  parser = argparse.ArgumentParser(description = desc, usage = usage,
+    formatter_class = argparse.RawTextHelpFormatter)
 
   parser.add_argument("-i", "--in", dest = "inFile", type = str, default = None,
     help = "Input file containing the query sequence/s")
@@ -26,6 +71,9 @@ if __name__ == "__main__":
 
   parser.add_argument("-r", "--replace", dest = "replace", default = False, \
     action = "store_true", help = "Over-write any previously generated file")
+
+  parser.add_argument("--version", action = "version", version ='%(prog)s \"' \
+    + __version + "\"")
 
   ## If no arguments are given, just show the help and finish
   if len(sys.argv) == 1:
@@ -46,16 +94,16 @@ if __name__ == "__main__":
   ## Check parameters related to files / directories
   if not lookForFile(args.inFile):
     sys.exit(("ERROR: Check input SEQUENCES file '%s'") % (args.inFile))
-  parameters.setdefault("in_file", args.inFile)
+  parameters.setdefault("in_file", os.path.abspath(args.inFile))
 
   if not lookForFile(args.configFile):
     sys.exit(("ERROR: Check input CONFIG file '%s'") % (args.configFile))
-  parameters.setdefault("config_file", args.configFile)
+  parameters.setdefault("config_file", os.path.abspath(args.configFile))
 
   if args.cdsFile:
     if not lookForFile(args.cdsFile):
       sys.exit(("ERROR: Check input CDS file '%s'") % (args.cdsFile))
-    parameters.setdefault("cds", args.cdsFile)
+    parameters.setdefault("cds", os.path.abspath(args.cdsFile))
 
   if not lookForDirectory(args.outFolder):
     sys.exit(("ERROR: Check output folder '%s'") % (args.outFolder))

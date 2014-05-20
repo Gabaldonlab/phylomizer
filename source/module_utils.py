@@ -1,3 +1,24 @@
+"""
+  phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
+  steps followed by a phylogenetist to build a gene family tree with error-control
+  of every step
+
+  Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import sys, os, subprocess as sp
 from operator import itemgetter
 from getpass import getpass
@@ -42,16 +63,19 @@ def readConfig(input_file):
       args = lookForProgram(param) if not args else lookForProgram(args)
       if not args:
         sys.exit(("ERROR: Impossible to find the binary for '%s'") % (param))
+      args = os.path.abspath(args)
 
     ## Check whether current file exist
     elif tag == "file":
       if not lookForFile(args):
         sys.exit(("ERROR: Check your input file '%s'") % (args))
+      args = os.path.abspath(args)
 
     ## Check directories exist and are writable
     elif tag == "directory":
       if not lookForDirectory(args):
         sys.exit(("ERROR: Check your input directory '%s'") % (args))
+      args = os.path.abspath(args)
 
     ## Since the 'mode' tag define which programs should be executed in a given
     ## step, convert the arguments line into a line
@@ -131,7 +155,14 @@ def listDirectory(directory, fileExtList):
   '''
   Get list of file info objects for files of particular extensions
   '''
-  fileList = [os.path.normcase(f) for f in os.listdir(directory)]
+
+  ## Add a "." to the file extension variable if it doesn't contain it
+  if fileExtList[0] != ".":
+    fileExtList = "." + fileExtList
+
+  ## Keep only files excluding directories
+  fileList = [os.path.normcase(f) for f in os.listdir(directory) \
+    if os.path.isfile(f)]
   return [ os.path.join(directory, f) for f in fileList \
            if os.path.splitext(f)[1] in fileExtList ]
 

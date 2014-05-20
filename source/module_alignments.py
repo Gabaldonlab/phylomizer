@@ -1,3 +1,24 @@
+"""
+  phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
+  steps followed by a phylogenetist to build a gene family tree with error-control
+  of every step
+
+  Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import os
 import re
 import sys
@@ -112,6 +133,7 @@ def alignment(parameters):
   if numSeqs < 3:
     print >> logFile, ("### INFO: It is necessary, at least, 3 sequences to "
       + "to reconstruct an alignment (%d)") % (numSeqs)
+    sys.exit(80)
 
   ## Otherwise, process the input sequence, substitute rare amino-acids and
   ## reverse input sequences when neccesary
@@ -131,7 +153,7 @@ def alignment(parameters):
     ## Substitute rare amino-acids if needed it
     if selenocys or pyrrolys:
 
-      out_file = ("%s.seqs.rare_aminoacids") % (oFile)
+      out_file = ("%s.seqs.no_rare_aa") % (oFile)
 
       ## If the output file has been generated, over-write, if any, downstream
       ## files
@@ -144,7 +166,7 @@ def alignment(parameters):
       if parameters["both_direction"]:
 
         in_file = ("%s.seqs.reverse") % (oFile)
-        out_file = ("%s.seqs.rare_aminoacids.reverse") % (oFile)
+        out_file = ("%s.seqs.no_rare_aa.reverse") % (oFile)
 
         ## Replace any downstream file is the current one is generated again
         if replaceRareAminoAcids(in_file, out_file, parameters["replace"], \
@@ -176,10 +198,10 @@ def alignment(parameters):
 
         ## Set the input file depending on the presence of rare amino-acids
         if direc == "forward":
-          in_file = ("%s.seqs.rare_aminoacids") % (oFile) if selenocys \
+          in_file = ("%s.seqs.no_rare_aa") % (oFile) if selenocys \
             or pyrrolys else parameters["in_file"]
         else:
-          in_file = ("%s.seqs.rare_aminoacids.reverse") % (oFile) if selenocys \
+          in_file = ("%s.seqs.no_rare_aa.reverse") % (oFile) if selenocys \
             or pyrrolys else ("%s.seqs.reverse") % (oFile)
 
         out_file = ("%s.alg.%s%s.%s") % (oFile, "no_rare_aa." if selenocys \
@@ -241,14 +263,22 @@ def alignment(parameters):
         logFile, parameters["replace"]):
         parameters["replace"] = True
 
+      ## Make such untrimmed alignment it is in phylip format
+      convertInputFile_Format("readal", parameters["readal"], out_file,out_file,
+        "phylip", logFile, parameters["replace"])
+
     ## Set the current output alignment as the one generated at a previous step
     else:
       out_file = generated_alignments.pop()
 
+      ## Make such untrimmed alignment it is in phylip format
+      convertInputFile_Format("readal", parameters["readal"], out_file,out_file,
+        "phylip", logFile, parameters["replace"])
+
     ## Either we have to trim the final alignment or we have to backtranslate to
     ## codons/nucleotides, we will need to check for a program - hopefully
     ## trimAl - to make the job
-    if "residue_datatype" in ["prot2codon", "residue_datatype"] or "trimming" \
+    if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"] or "trimming" \
       in parameters:
 
       prog = parameters["trimming"][0]
@@ -262,7 +292,7 @@ def alignment(parameters):
 
     ## If the modes "prot2codon" or "prot2nuc" are selected - backtranslated the
     ## untrimmed/final alignment
-    if "residue_datatype" in ["prot2codon", "residue_datatype"]:
+    if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
 
       prog_params = ("%s_cds") % (prog)
       params = parameters[prog_params] if prog_params in parameters else ""
@@ -270,6 +300,10 @@ def alignment(parameters):
       if (trimmingAlignment(prog, binary, params, out_file + "_cds", logFile,
         parameters["replace"], in_file = out_file, cds = parameters["cds"])):
         parameters["replace"] = True
+
+      ## Make such untrimmed alignment it is in phylip format
+      convertInputFile_Format("readal", parameters["readal"], out_file + "_cds",
+        out_file + "_cds" ,"phylip", logFile, parameters["replace"])
 
     ## If set, trim resulting alignment
     if "trimming" in parameters:
@@ -298,7 +332,7 @@ def alignment(parameters):
           out_file)
 
         ## If the backtranslation to codon/nucleotides is required, do it
-        if "residue_datatype" in ["prot2codon", "residue_datatype"]:
+        if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
           prog_params = ("%s_cds") % (prog)
           if prog_params in parameters:
             params = ("%s %s") % (params, parameters[prog_params])
@@ -312,7 +346,7 @@ def alignment(parameters):
           parameters["replace"], in_file = out_file)
 
         ## If the backtranslation to codon/nucleotides is required, do it
-        if "residue_datatype" in ["prot2codon", "residue_datatype"]:
+        if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
           prog_params = ("%s_cds") % (prog)
           if prog_params in parameters:
             params = ("%s %s") % (params, parameters[prog_params])
@@ -321,8 +355,8 @@ def alignment(parameters):
             parameters["replace"], in_file = out_file, cds = parameters["cds"])
 
       ## After the trimming, set the final output file as the trimmed file
-      out_file = clean_file + ("_cds" if "residue_datatype" in ["prot2codon", \
-        "residue_datatype"] else "")
+      out_file = clean_file + ("_cds" if parameters["residue_datatype"] in \
+        ["prot2codon", "prot2nuc"] else "")
 
   final = datetime.datetime.now()
   print >> logFile, ("###\n###\tSTEP\tMultipple Sequence Alignment\tEND\t"
@@ -347,14 +381,14 @@ def alignment(parameters):
 
   return parameters
 
-def check_count_sequences(in_file):
+def check_count_sequences(in_file, in_format = "fasta"):
   '''
   Given a set of sequences, return how many there are as well as if any
   selenocysteine or pyrrolysine is detected among the sequences
   '''
 
   numb_sequences, selenocys, pyrrolys = 0, False, False
-  for record in SeqIO.parse(in_file, "fasta"):
+  for record in SeqIO.parse(in_file, in_format):
     numb_sequences += 1
 
     seq = str(record.seq).upper()
@@ -380,34 +414,24 @@ def reverseSequences(binary, in_file, out_file, replace, logFile):
   ## being aligned or not and of the input format
   cmd = ("%s -in %s -out %s -reverse") % (binary, in_file, out_file)
 
-  ## Record the time and precise command-line
   name = getfqdn()
-  start = datetime.datetime.now()
-  date = start.strftime("%H:%M:%S %m/%d/%y")
-
-  print >> logFile, ("###\n###\treadAl - reverse seqs\t%s") % (date)
+  print >> logFile, ("###\n###\treadAl - reverse seqs")
   print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
-  logFile.flush()
 
   try:
     proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
   except OSError, e:
     print >> sys.stderr, "ERROR: Execution failed: " + str(e)
-    sys.exit(81)
+    sys.exit(exit_codes["readal"])
 
   if proc.wait() != 0:
-    print >> sys.stderr, "ERROR: Execution failed: readAl"
-    sys.exit(81)
-
-  final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
-  print >> logFile, ("###\tTime\t%s\n###") % (total)
-  logFile.flush()
+    print >> sys.stderr, ("ERROR: Execution failed: readAl")
+    sys.exit(exit_codes["readal"])
 
   return True
 
 def replaceRareAminoAcids(in_file, out_file, replace, logFile, combinations, \
-  back = False):
+  back = False, in_format = "fasta"):
   '''
   Replace rare amino-acids occurrence by wildcards, and vice-versa. It will only
   works with input files in FASTA format
@@ -429,17 +453,8 @@ def replaceRareAminoAcids(in_file, out_file, replace, logFile, combinations, \
   ## detected
   stats = dict([(letter, 0) for letter in subs])
 
-  ## Record the time and precise command-line
-  name = getfqdn()
-  start = datetime.datetime.now()
-  date = start.strftime("%H:%M:%S %m/%d/%y")
-
-  print >> logFile, ("###\n###\t[%s]\tSubstituting Rare Amino-Acids\t%s") % \
-    (name, date)
-  logFile.flush()
-
   oFile = open(out_file, "w")
-  for record in SeqIO.parse(in_file, "fasta"):
+  for record in SeqIO.parse(in_file, in_format):
     seq = str(record.seq)
     for letter in subs:
       seq = seq.replace(letter, subs[letter])
@@ -450,10 +465,9 @@ def replaceRareAminoAcids(in_file, out_file, replace, logFile, combinations, \
   output = "|\t".join([("'%s' > '%s'\tfreq: %d") % (aa, subs[aa], stats[aa]) \
     for aa in stats if stats[aa] > 0])
 
+  name = getfqdn()
+  print >> logFile, ("###\n###\t[%s]\tSubstituting Rare Amino-Acids") % (name)
   print >> logFile, ("###\tReport\t%s") % (output)
-  final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
-  print >> logFile, ("###\n###\tTime\t%s\n###") % (total)
   logFile.flush()
 
   return True
@@ -645,48 +659,61 @@ def checkAlignment(ifile_1, ifile_2, iformat_1 = "fasta", iformat_2 = "fasta"):
   ## If everything is OK, inform about it
   return True
 
-
-
-
-
-
-
-################################################################################
-### Old Code
-################################################################################
-
-def convertAlignment(bin, inFile, outFile, outFormat, logFile, replace):
+def getFileFormat(label, binary, in_file, logFile):
   '''
-  Convert the input alignmnet into the input format
+  Get format for the input sequences file using readAl
   '''
 
-  if lookForFile(outFile) and not replace:
-    return False
-  lgFile = open(logFile, "a+ ") if logFile != "" else None
+  ## Define the command-line for getting the input file format
+  cmd = ("%s -in %s -format") % (binary, in_file)
 
-  ## Construct command-line call and print it onto log file
-  cmd = ("%s -in %s -out %s -%s") % (bin, inFile, outFile, outFormat)
-
-  start = datetime.datetime.now()
-  date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> lgFile, ("###\n### readAl\n### %s\n### %s###\n") % (date, cmd)
-  lgFile.flush()
+  name = getfqdn()
+  print >> logFile, ("###\n###\t%s - get format") % (label.upper())
+  print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
+  logFile.flush()
 
   try:
-    proc = sp.Popen(cmd, shell = True, stderr = lgFile, stdout = lgFile)
+    proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = sp.PIPE)
   except OSError, e:
     print >> sys.stderr, "ERROR: Execution failed: " + str(e)
-    sys.exit(81)
+    sys.exit(exit_codes[label])
+
+  in_file_format, aligned = None, None
+  for line in map(strip, proc.communicate()[0].split("\n")):
+    if line.startswith("## Input file format") and not in_file_format:
+      in_file_format = map(strip, line.split("\t"))[1].lower()
+    if line.startswith("## Input file aligned") and not aligned:
+      aligned = map(strip, line.split("\t"))[1].lower() == "yes"
+
+  return in_file_format, aligned
+
+def convertInputFile_Format(label, binary, in_file, out_file, out_format, \
+  logFile, replace):
+  '''
+  Convert a giving input file into a given output format
+  '''
+
+  ## Check whether the output file already exists. If it is not set to replace
+  ## it, just return to the calling function
+  if lookForFile(out_file) and not replace:
+    return False
+
+  ## Define the command-line for getting the input file format
+  cmd = ("%s -in %s -out %s -%s") % (binary, in_file, out_file, out_format)
+
+  name = getfqdn()
+  print >> logFile, ("###\n###\t%s - get format") % (label.upper())
+  print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
+  logFile.flush()
+
+  try:
+    proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
+  except OSError, e:
+    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
+    sys.exit(exit_codes[label])
 
   if proc.wait() != 0:
-    print >> sys.stderr, "ERROR: Execution failed: trimAl"
-    sys.exit(81)
-
-  final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
-  print >> lgFile, ("###\n### Total time\t%s\n###") % (total)
-  lgFile.close()
+    print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
+    sys.exit(exit_codes[label])
 
   return True
-
-
