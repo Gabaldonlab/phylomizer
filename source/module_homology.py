@@ -452,6 +452,6 @@ def read_database(input_db_file, sequences):
   for record in SeqIO.parse(input_db_file, "fasta"):
     if not record.id in sequences:
       continue
-    seq = str(record.seq) if record.seq[-1] != "*" else record.seq[:-1]
+    seq = str(record.seq) if record.seq[-1] != "*" else str(record.seq[:-1])
     output.setdefault(record.id, (len(seq), splitSequence(seq)))
   return output
