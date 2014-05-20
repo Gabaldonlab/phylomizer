@@ -383,14 +383,16 @@ def filter_results(parameters, logFile):
     ## based search
     query = parsed_line[2] if tag == "hmmer" else parsed_line[0]
 
+    ## Store the self-hit line - on this way we make sure we will include the
+    ## query protein among the finally selected sequences despite any cut-off
+    if target == query and not query_line:
+      query_line = parsed_line
+
     ## Discard previously found target sequences
     if target in target_sequences:
       continue
     input_lines.append(parsed_line)
     target_sequences|= set([target, query])
-
-    if target == query and not query_line:
-      query_line = parsed_line
 
   sequences = read_database(parameters["db_file"], target_sequences)
 
