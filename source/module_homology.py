@@ -386,7 +386,7 @@ def filter_results(parameters, logFile):
     ## Store the self-hit line - on this way we make sure we will include the
     ## query protein among the finally selected sequences despite any cut-off
     if target == query and not query_line:
-      query_line = parsed_line
+      query_line = [parsed_line]
 
     ## Discard previously found target sequences
     if target in target_sequences:
