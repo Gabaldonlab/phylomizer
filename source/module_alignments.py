@@ -25,6 +25,8 @@ import sys
 import datetime
 import subprocess as sp
 
+import numpy as np
+
 from Bio import SeqIO
 from hashlib import md5
 from string import strip
@@ -534,7 +536,8 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
     sys.exit(exit_codes[label])
 
   if proc.wait() != 0:
-    print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
+    print >> sys.stderr, ("ERROR: Execution failed: %s [exit code != -1]") \
+      % (label.upper(), m)
     sys.exit(exit_codes[label])
 
   final = datetime.datetime.now()
@@ -560,8 +563,10 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
   ## In case something goes wrong, remove the output file and finish the
   ## current execution
   if not checkAlignment(in_file, out_file):
-    print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
-    sp.call(("rm -f %s") % (out_file), shell = True)
+    print in_file, out_file
+    print >> sys.stderr, ("ERROR: Execution failed: %s [file check]") % \
+      (label.upper())
+    # sp.call(("rm -f %s") % (out_file), shell = True)
     sys.exit(exit_codes[label])
 
   return True
@@ -636,24 +641,35 @@ def checkAlignment(ifile_1, ifile_2, iformat_1 = "fasta", iformat_2 = "fasta"):
   inSeqs_1 = {}
   for record in SeqIO.parse(ifile_1, iformat_1):
     if record.id in inSeqs_1:
+      print >> sys.stderr, ("ERROR: Repeated sequence '%s' ['%s']") \
+        % (record.id, ifile_1)
       return False
     seq = re.sub(r'[^a-zA-Z]', '', str(record.seq))
-    inSeqs_1.setdefault(record.id, seq)
+    inSeqs_1.setdefault(record.id, seq.upper().strip())
 
   inSeqs_2 = {}
   for record in SeqIO.parse(ifile_2, iformat_2):
     if record.id in inSeqs_2:
+      print >> sys.stderr, ("ERROR: Repeated sequence '%s' ['%s']") \
+        % (record.id, ifile_2)
       return False
     seq = re.sub(r'[^a-zA-Z]', '', str(record.seq))
-    inSeqs_2.setdefault(record.id, seq)
+    inSeqs_2.setdefault(record.id, seq.upper().strip())
 
   ## If there are inconsistencies among sequences, inform about them
   if set(inSeqs_1.keys()) ^ set(inSeqs_2.keys()) != set():
+    print >> sys.stderr,("ERROR: Non-overlapping sequences identifier detected "
+      + "between input ['%s'] and output ['%s'] files ") % (ifile_1, ifile_2)
     return False
 
   ## Check that sequences in both files contain the same residues
   for seq in inSeqs_1:
     if inSeqs_1[seq] != inSeqs_2[seq]:
+      print >> sys.stderr, ("ERROR: Different sequence composition for '%s' bet"
+        + "ween input ['%s'] and output ['%s'] files ") % (seq, ifile_1, ifile_2)
+      print >> sys.stderr, ("%s\n%s") % (inSeqs_1[seq], inSeqs_2[seq])
+      print >> sys.stderr, [(pos, inSeqs_1[seq][pos], inSeqs_2[seq][pos]) for pos in range(np.min([len(inSeqs_2[seq]), len(inSeqs_1[seq])])) if inSeqs_1[seq][pos] != inSeqs_2[seq][pos]]
+
       return False
 
   ## If everything is OK, inform about it

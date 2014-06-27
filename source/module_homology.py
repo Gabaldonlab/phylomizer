@@ -388,12 +388,12 @@ def filter_results(parameters, logFile):
     if target == query and not query_line:
       query_line = [parsed_line]
 
-    ## Discard previously found target sequences
-    if target in target_sequences:
-      continue
-    input_lines.append(parsed_line)
-    target_sequences|= set([target, query])
+    ## If current target sequence has not been found yet, register it
+    if not target in target_sequences:
+      input_lines.append(parsed_line)
+      target_sequences|= set([target])
 
+  ## We make sure query sequence is included
   sequences = read_database(parameters["db_file"], target_sequences)
 
   ## Depending on how the search was performed, we will filter-out data
@@ -406,7 +406,8 @@ def filter_results(parameters, logFile):
   accepted_lines, accepted_targets = [], set()
   for line in input_lines:
     ## If the current target has been already found, move to next hit
-    if (line[0] if tag == "hmmer" else line[1]) in accepted_targets:
+    target = line[0] if tag == "hmmer" else line[1]
+    if target in accepted_targets:
       continue
     ## Depending on the package, filter just by two e-values (sequence and best
     ## found domain) or by sequence e-value + coverage between sequences
@@ -420,16 +421,20 @@ def filter_results(parameters, logFile):
 
     ## Store current line and target sequence
     accepted_lines.append(line)
-    accepted_targets.add(line[0] if tag == "hmmer" else line[1])
+    accepted_targets.add(target)
 
   ## Sort by e-values (and bit-score for BLAST only) accepted lines
   accepted_lines.sort(sort_blast_hits if tag == "blast" else sort_hmmer_hits)
 
-  if hits != -1 and len(accepted_lines) >= hits:
-    if not query in accepted_targets and query_line:
-      accepted_lines = query_line + accepted_lines[:hits-1]
-    else:
-      accepted_lines = accepted_lines[:hits]
+  ## Recover query ID from query line - make sure query hit is included
+  query = None
+  if query_line:
+    query = query_line[0][2] if tag == "hmmer" else query_line[0][0]
+    if not query in accepted_targets:
+      accepted_lines = query_line + accepted_lines
+
+  if hits != -1 and len(accepted_lines) > hits:
+    accepted_lines = accepted_lines[:hits]
 
   ## Get selected sequences. It will be used to produce MD5s key as well as to
   ## generate the sequences FASTA file
