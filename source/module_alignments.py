@@ -537,7 +537,7 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
 
   if proc.wait() != 0:
     print >> sys.stderr, ("ERROR: Execution failed: %s [exit code != -1]") \
-      % (label.upper(), m)
+      % (label.upper())
     sys.exit(exit_codes[label])
 
   final = datetime.datetime.now()
