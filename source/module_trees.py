@@ -341,13 +341,20 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
   ## Process program's output and rename output files according to our own
   ## scheme
   if label in ["phyml", "codonphyml"]:
+
+    ## Since resulting tree/stats file have slightly changed between version,
+    ## we have to control for that.
+    tree_file = ("%s_%s_tree.txt") % (infile, label)
+    stats_file = ("%s_%s_stats.txt") % (infile, label)
+    if not lookForFile(tree_file, attempts = 2):
+      tree_file = ("%s_%s_tree") % (infile, label)   
+      stats_file = ("%s_%s_stats") % (infile, label)   
+
     try:
-      sp.call(("mv %s_%s_tree.txt %s") % (in_file, label, out_file), shell = \
-        True)
-      sp.call(("mv %s_%s_stats.txt %s") % (in_file, label, stats_file), shell =
-        True)
+      sp.call(("mv %s %s") % (tree_file, out_file), shell = True)
+      sp.call(("mv %s %s") % (stats_file, stats_file), shell = True)
     except OSError:
-      print >> sys.stderr, ("ERROR: Impossible to rename %s output files") \
+      print >> sys.stderr, ("ERROR: Impossible to rename '%s' output files") \
         % (label.upper())
       sys.exit(exit_codes[label])
 
