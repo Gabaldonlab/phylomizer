@@ -1,0 +1,73 @@
+# PhylomeDB Pipeline Configuration file - DMM combination (DiAlign-TX / Mafft / Muscle)
+
+## We assume all programs are already installed on files asccesible thorugh the $PATH variable
+
+# You can use the wildcard "#" to put some comments in this file.
+verbose             parameter	 1
+residue_datatype    parameter    protein
+
+## HOMOLOGY SEARCH Step.
+## General parameters, available modes and programs are defined here
+
+e_value             parameter      1e-5
+coverage            parameter      0.5
+hits                parameter      150
+
+## Protein Homology search
+homology            mode           legacy_blast
+
+## Legacy NCBI BLAST
+legacy_blast        mode           blastpgp
+blastpgp            binary
+blastpgp_params     parameter      -FT -b 5000 -a 2 -m8 -s -z 1000000 -t0
+
+## Multiple Sequence alignment
+## We only include those programs used on this way
+
+alignment           mode           kalign muscle mafft
+consensus           mode           m_coffee
+trimming            mode           trimal
+both_direction      parameter      True
+
+## General parameter for aligner programs. Sometimes rare aminoacids such as
+## selenocysteine 'U' or pyrrolysine 'O' cause programs to fail, therefore,
+## those rare amino-acids are substitute prior and after making the alignments
+in_letter           parameter	     U:B
+in_letter           parameter	     O:Z
+
+## Alignment programs
+muscle              binary
+muscle_params       parameter
+
+mafft               binary
+mafft_params        parameter       --auto
+
+kalign              binary
+kalign_params       parameter -f fasta
+
+##  We used an special T-Coffee flavor to generate the meta-alignment
+m_coffee            binary           t_coffee
+m_coffee_params     parameter        -n_core 1 -output fasta -quiet
+
+## Alignment trimming program
+trimal              binary
+trimal_params       parameter	      -phylip -gt 0.1
+trimal_compare      parameter	      -ct 0.1667
+
+## Alignment and Sequences files manipulation
+readal              binary
+
+### Phylogenetic tree reconstruction program
+tree                mode           phyml
+
+## Evolutionary models for PhyML
+evol_models         parameter	     JTT WAG MtREV VT LG Blosum62 Dayhoff
+numb_models         parameter	     2
+
+## Parameters for PhyML
+tree_approach       mode           nj ml
+nj                  parameter	     -b  0 -o l
+ml                  parameter	     -b -2 -o tlr
+
+phyml               binary
+phyml_params        parameter      -d aa -f e -v e -a e -c 4 --no_memory_check
