@@ -358,11 +358,28 @@ def filter_results(parameters, logFile):
   ## not. It will also affect whether the variable REPLACE is set or not
   outFile = ("%s.homology.%s.filter") % (oFile, tag)
 
-  ## If output file exist and it is not set to replace it, just go back to the
-  ## main function. Otherwise, set the replace parameter to TRUE in other to
-  ## replace any already generated file downstream
+  ## If output file exist and it is not set to replace it, then load the
+  ## selected sequences and go back to the main function. Otherwise, set the
+  ## replace parameter to TRUE in other to replace any already generated file
+  ## downstream
   if lookForFile(outFile) and not parameters["replace"]:
-    return
+    ## Get selected sequences. It will be used to produce MD5s key as well as to
+    ## generate the sequences FASTA file
+    target_sequences = set()
+    for line in open(outFile, "rU"):
+      ## Parse line
+      f = map(strip, line.split())
+      parsed = [elem for elem in parseComments([e for e in f if e]) if elem]
+      ## Include only target sequences - we assume query sequence had been
+      ## include as part of the filtered results
+      target_sequences.add(parsed[0] if tag == "hmmer" else parsed[1])
+
+    ## We read selected sequences from input database and return it to the main
+    ## function
+    selected_sequences = read_database(parameters["db_file"], target_sequences)
+    return selected_sequences
+
+  ## We set the replace flag to true in order to reconstruct any downstream file
   parameters["replace"] = True
 
   input_lines, target_sequences, query_line = [], set(), None

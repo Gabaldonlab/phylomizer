@@ -248,16 +248,39 @@ def phylogenetic_trees(parameters):
     ## Get the models sorted by their likelihood values
     records = sorted(results.iteritems(), key = itemgetter(1), reverse = True)
 
-    ## If any tree has been generated de novo, update the file containing the
-    ## likelihoods / model values
-    if replace:
-      out_file = open(("%s.tree.%s.rank.%s") % (oFile, prog, approach), "w")
+    ## Set the filename which stores the ranking
+    rank_file = ("%s.tree.%s.rank.%s") % (oFile, prog, approach)
+
+    update = False
+    ## Check the content of the rankings file - if any.
+    ## Marked the file as updatable if there is any discrepancy
+    if not replace and lookForFile(rank_file):
+
+      old_content = "\n".join(["\t".join(map(strip, line.split("\t"))) for line
+        in open(rank_file, "rU")])      
+
+      newly_generated = "\n".join([("%s\t%s") % (r[0], r[1]) for r in records])
+      
+      ## Decide whether ranking file should be updated after comparing current
+      ## content with newly generated content
+      update = old_content != newly_generated
+
+    ## If the file containing the ranking doesn't exist, generate it.
+    ## Update the file content if the replace flag is set to true or the content
+    ## has changed - since the phylogenetic tree reconstruction step is the most
+    ## expensive one - in terms of time/memory consumption - we are not setting
+    ## replace flag to True even when this file is generated/updated. On this
+    ## way, we can take adventage of any tree generated in any downstream step. 
+    if not lookForFile(rank_file) or replace or update:
+
+      out_file = open(rank_file, "w")
       print >> out_file, "\n".join([("%s\t%s") % (r[0], r[1]) for r in records])
       out_file.close()
 
-      ## It also set the replace flag to True to generate again any file on
-      ## downstream steps
-      parameters["replace"] = True
+      ## We could set the replace flag to True. However, if any tree has been
+      ## generated 'de novo' during this iteration, then the flag is already set
+      ## to True. 
+      #~ parameters["replace"] = True
 
     ## Select a given number of models for the next iteration - if any
     selected_models = [pair[0] for pair in records[:parameters["numb_models"]]]
@@ -332,7 +355,6 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
     print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
     sys.exit(exit_codes[label])
 
-
   final = datetime.datetime.now()
   total = format_time((final - start).seconds if start else 0)
   print >> logFile, ("###\tTime\t%s\n###") % (total)
@@ -344,15 +366,15 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
 
     ## Since resulting tree/stats file have slightly changed between version,
     ## we have to control for that.
-    tree_file = ("%s_%s_tree.txt") % (infile, label)
-    stats_file = ("%s_%s_stats.txt") % (infile, label)
+    tree_file = ("%s_%s_tree.txt") % (in_file, label)
+    sts_file = ("%s_%s_stats.txt") % (in_file, label)
     if not lookForFile(tree_file, attempts = 2):
-      tree_file = ("%s_%s_tree") % (infile, label)   
-      stats_file = ("%s_%s_stats") % (infile, label)   
+      tree_file = ("%s_%s_tree") % (in_file, label)   
+      sts_file = ("%s_%s_stats") % (in_file, label)   
 
     try:
       sp.call(("mv %s %s") % (tree_file, out_file), shell = True)
-      sp.call(("mv %s %s") % (stats_file, stats_file), shell = True)
+      sp.call(("mv %s %s") % (sts_file, stats_file), shell = True)
     except OSError:
       print >> sys.stderr, ("ERROR: Impossible to rename '%s' output files") \
         % (label.upper())

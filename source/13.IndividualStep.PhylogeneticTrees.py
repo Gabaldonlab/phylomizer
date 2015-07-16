@@ -48,8 +48,8 @@ del get_versions
 
 if __name__ == "__main__":
 
-  usage = ("\n\npython %(prog)s -i seed_sequence/s -c config_file -d output_"
-    + "directory -b sequences_db [other_options]\n")
+  usage = ("\n\npython %(prog)s -i (--in) multiple sequence alignment file -c "
+    + "(--config) config_file -o (--out) output_directory [other_options]\n")
 
   parser = argparse.ArgumentParser(description = desc, usage = usage,
     formatter_class = argparse.RawTextHelpFormatter)

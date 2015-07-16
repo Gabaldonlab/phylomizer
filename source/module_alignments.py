@@ -132,8 +132,8 @@ def alignment(parameters):
   numSeqs, selenocys, pyrrolys = check_count_sequences(parameters["in_file"])
 
   ## Finish when there are not enough sequences to make an alignment
-  if numSeqs < 3:
-    print >> logFile, ("### INFO: It is necessary, at least, 3 sequences to "
+  if numSeqs < 2:
+    print >> logFile, ("### INFO: It is necessary, at least, 2 sequences to "
       + "to reconstruct an alignment (%d)") % (numSeqs)
     sys.exit(80)
 
