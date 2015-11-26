@@ -108,8 +108,8 @@ kalign_params       parameter      -f fasta
 # clustalw            binary
 # clustalw_params     parameter      -ALIGN
 
-# dialign-tx          binary
-# dialign-tx_params   parameter
+# dialign_tx          binary
+# dialign_tx_params   parameter
 
 # prank               binary
 # prank_params        parameter      +F

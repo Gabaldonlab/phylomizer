@@ -131,10 +131,13 @@ def alignment(parameters):
   ## selenocysteine/pyrrolysine residues
   numSeqs, selenocys, pyrrolys = check_count_sequences(parameters["in_file"])
 
+  ## Set the minimum number of sequences required to reconstruct an alignment
+  min_numb_seqs = int(parameters["min_seqs_alignment"]) if "min_seqs_alignment"\
+     in parameters else 2
   ## Finish when there are not enough sequences to make an alignment
-  if numSeqs < 2:
-    print >> logFile, ("### INFO: It is necessary, at least, 2 sequences to "
-      + "to reconstruct an alignment (%d)") % (numSeqs)
+  if numSeqs < min_numb_seqs:
+    print >> logFile, ("### INFO: It is necessary, at least, %d sequences to "
+      + "to reconstruct an alignment (%d)") % (min_numb_seqs, numSeqs)
     sys.exit(80)
 
   ## Otherwise, process the input sequence, substitute rare amino-acids and
@@ -498,11 +501,16 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
   elif label in ["clustal_omega"]:
     cmd = ("%s %s --in %s --out %s") % (binary, parameters, in_file, out_file)
 
-  elif label in ["mafft", "dialign_tx"]:
+  ## elif label in ["mafft", "dialign_tx"]:
+  elif label in ["mafft"]:
     cmd = ("%s %s %s > %s") % (binary, parameters, in_file, out_file)
 
   elif label in ["prank"]:
     cmd = ("%s %s -d=%s -o=%s") % (binary, parameters, in_file, out_file)
+
+  ## Starting for newer DiAlign-TX versions
+  elif label in ["dialign_tx"]:
+    cmd = ("%s %s %s %s") % (binary, parameters, in_file, out_file)
 
   ## On t-coffee case, we need to set-up some ENV variables to be able to run
   ## smoothly the program

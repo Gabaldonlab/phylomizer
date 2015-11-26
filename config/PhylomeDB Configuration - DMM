@@ -24,7 +24,7 @@ blastpgp_params     parameter      -FT -b 5000 -a 2 -m8 -s -z 1000000 -t0
 ## Multiple Sequence alignment
 ## We only include those programs used on this way
 
-alignment           mode           dialign-tx muscle mafft
+alignment           mode           dialign_tx muscle mafft
 consensus           mode           m_coffee
 trimming            mode           trimal
 both_direction      parameter      True
@@ -42,8 +42,8 @@ muscle_params       parameter
 mafft               binary
 mafft_params        parameter       --auto
 
-dialign-tx          binary
-dialign-tx_params   parameter       /usr/share/dialign-tx/
+dialign_tx          binary
+dialign_tx_params   parameter       /usr/share/dialign-tx/
 
 ##  We used an special T-Coffee flavor to generate the meta-alignment
 m_coffee            binary          t_coffee

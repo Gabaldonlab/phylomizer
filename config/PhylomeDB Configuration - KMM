@@ -1,4 +1,4 @@
-# PhylomeDB Pipeline Configuration file - DMM combination (DiAlign-TX / Mafft / Muscle)
+# PhylomeDB Pipeline Configuration file - KMM combination (KAlign / Mafft / Muscle)
 
 ## We assume all programs are already installed on files asccesible thorugh the $PATH variable
 

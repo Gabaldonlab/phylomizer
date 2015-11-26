@@ -144,7 +144,9 @@ if __name__ == "__main__":
     <= 1.0):
     sys.exit(("ERROR: Check your 'coverage' parameter"))
 
-  if not "hits" in parameters or int(parameters["hits"]) < 1:
+  if not "hits" in parameters or (parameters["hits"].isdigit() and \
+    int(parameters["hits"]) < 1)  or (not parameters["hits"].isdigit() \
+    and parameters["hits"] != "no_limit"):
     sys.exit(("ERROR: Check your 'hits' upper limit value"))
 
   ## Check whether alignment will be reconstructed in one or two directions, i.e
