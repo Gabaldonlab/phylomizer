@@ -42,9 +42,11 @@ from module_trees import phylogenetic_trees
 from module_utils import readConfig, lookForDirectory, lookForFile, printConfig
 
 ## Get dinamically version
-from _version import get_versions
-__version = get_versions()['version']
-del get_versions
+#~ from _version import get_versions
+#~ __version = get_versions()['version']
+#~ del get_versions
+
+__version = "1.0.0"
 
 if __name__ == "__main__":
 

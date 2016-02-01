@@ -19,11 +19,17 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys, os, subprocess as sp
-from operator import itemgetter
-from getpass import getpass
-from string import strip
+import os
+import sys
+import datetime
+import subprocess as sp
+
 from time import sleep
+from string import strip
+from getpass import getpass
+from operator import itemgetter
+
+available_tags = ["binary", "file", "directory", "mode", "parameter", "other"]
 
 def parseComments(string_list):
   '''
@@ -82,12 +88,18 @@ def readConfig(input_file):
     elif tag == "mode":
       args = args.split()
 
+    ## We allow to run specific commands - for instance to use MPI - using the
+    ## "other" tag - therefore we controll whether that tag has been used or not
+    elif not tag in available_tags:
+      msg =  "ERROR: Invalid tag - specific commands can be executed using "
+      msg += "'other' tag.\nAvailable ones [%s]" % ", ".join(available_tags)
+      sys.exit(msg)
+
     ## Depending whether the current parameter exists, assign or add the current
     ## arguments. On this way it is possible to have multi-line parameters.
     if param in parameters:
-      parameters[param] = " ".join([parameters[param], args])
-    else:
-      parameters[param] = args
+      args = " ".join([parameters[param], args])
+    parameters[param] = args
 
   return parameters
 
@@ -142,9 +154,14 @@ def lookForDirectory(input_direct, create = True):
       str(e)))
   return True
 
-def format_time(total_time):
+def format_time(delta):
   ''' Format a given amount of elapsed seconds into a human readable notation
   '''
+
+  ## We convert delta - difference between two timestamps - into seconds.
+  ## Note that when delta has as arguments days, seconds, and microseconds so
+  ## any time longer than a day has to be converted before parsing it.
+  total_time = delta.days * 86400 + delta.seconds
 
   days, remaining = divmod(total_time, 86400)
   hours, remaining = divmod(remaining, 3600)

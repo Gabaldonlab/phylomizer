@@ -76,10 +76,8 @@ def alignment(parameters):
   os.chdir(parameters["out_directory"])
 
   ## Set output filename and log file
-  if parameters["replace"] and parameters["step"] == 0:
-    logFile = open(oFile + ".log", "w")
-  else:
-    logFile = open(oFile + ".log", "a+")
+  open_mode = "w" if parameters["replace"] and parameters["step"] == 0 else "a+"
+  logFile = open(oFile + ".log", open_mode)
 
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
@@ -364,12 +362,24 @@ def alignment(parameters):
         ["prot2codon", "prot2nuc"] else "")
 
   final = datetime.datetime.now()
+  date = final.strftime("%H:%M:%S %m/%d/%y")
   print >> logFile, ("###\n###\tSTEP\tMultipple Sequence Alignment\tEND\t"
     + "%s") % (date)
-  total = format_time((final - start).seconds if start else 0)
+
+  ## We return a DELTA object comparing both timestamps
+  total = format_time(final - start if start else 0)
   print >> logFile, ("###\tTOTAL Time\tMultiple Sequence Alignment\t%s"
     + "\n###") % (total)
   logFile.close()
+
+  ## Clean-up log directory from undesirable lines
+  try:
+    sp.call(("sed -i '/^$/d' %s.log") % (oFile), shell = True)
+    sp.call(("sed -i '/^M/d' %s.log") % (oFile), shell = True)
+    sp.call(("sed -i '/\r/d' %s.log") % (oFile), shell = True)
+  except OSError:
+    print >> sys.stderr, ("ERROR: Impossible to clean-up '%s.log' log file") \
+      % (oFile)
 
   ## Update the input file parameter and return the dictionary containing all
   ## parameters. Those parameters may be used in other steps
@@ -549,7 +559,8 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
     sys.exit(exit_codes[label])
 
   final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
+  ## We return a DELTA object comparing both timestamps
+  total = format_time(final - start if start else 0)
   print >> logFile, ("###\tTime\t%s\n###") % (total)
   logFile.flush()
 
@@ -626,7 +637,8 @@ def trimmingAlignment(label, binary, parameters, out_file, logFile, replace, \
     sys.exit(exit_codes[label])
 
   final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
+  ## We return a DELTA object comparing both timestamps
+  total = format_time(final - start if start else 0)
   print >> logFile, ("###\tTime\t%s\n###") % (total)
   logFile.flush()
 
@@ -674,10 +686,7 @@ def checkAlignment(ifile_1, ifile_2, iformat_1 = "fasta", iformat_2 = "fasta"):
   for seq in inSeqs_1:
     if inSeqs_1[seq] != inSeqs_2[seq]:
       print >> sys.stderr, ("ERROR: Different sequence composition for '%s' bet"
-        + "ween input ['%s'] and output ['%s'] files ") % (seq, ifile_1, ifile_2)
-      print >> sys.stderr, ("%s\n%s") % (inSeqs_1[seq], inSeqs_2[seq])
-      print >> sys.stderr, [(pos, inSeqs_1[seq][pos], inSeqs_2[seq][pos]) for pos in range(np.min([len(inSeqs_2[seq]), len(inSeqs_1[seq])])) if inSeqs_1[seq][pos] != inSeqs_2[seq][pos]]
-
+        + "ween input ['%s'] and output ['%s'] files") % (seq, ifile_1, ifile_2)
       return False
 
   ## If everything is OK, inform about it

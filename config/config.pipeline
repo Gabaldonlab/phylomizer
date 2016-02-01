@@ -178,7 +178,7 @@ ml                  parameter	     -b -2 -o tlr
 ## for phyml for the <nj> and <ml> steps
 
 ## Parameters for PhyML
-phyml               binary
+phyml               other          mpirun -n 4 phyml-mpi
 phyml_params        parameter      -d aa -f e -v e -a e -c 4 --no_memory_check
 
 ## Parameters for CodonPhyML

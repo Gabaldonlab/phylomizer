@@ -65,10 +65,8 @@ def phylogenetic_trees(parameters):
   os.chdir(parameters["out_directory"])
 
   ## Set output filename and log file
-  if parameters["replace"] and parameters["step"] == 0:
-    logFile = open(oFile + ".log", "w")
-  else:
-    logFile = open(oFile + ".log", "a+")
+  open_mode = "w" if parameters["replace"] and parameters["step"] == 0 else "a+"
+  logFile = open(oFile + ".log", open_mode)
 
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
@@ -141,7 +139,8 @@ def phylogenetic_trees(parameters):
   ## Selenocysteines or Pyrrolysines are present in the input alignment
   if prog in ["raxml"]:
 
-    ## Create a temporary FASTA file which will be used as input for HMMBuild
+    ## Create a temporary FASTA file which will be used to detect the presence
+    ## of rare amino-acids
     TEMPFILE = tempfile.NamedTemporaryFile()
     convertInputFile_Format("readal", parameters["readal"], parameters["in_file"],
       TEMPFILE.name, "fasta", logFile, parameters["replace"])
@@ -291,12 +290,24 @@ def phylogenetic_trees(parameters):
         if m.endswith(add_model)]
 
   final = datetime.datetime.now()
+  date = final.strftime("%H:%M:%S %m/%d/%y")
   print >> logFile, ("###\n###\tSTEP\tPhylogenetic Tree Reconstruction\tEND\t"
     + "%s") % (date)
-  total = format_time((final - start).seconds if start else 0)
+    
+  ## We return a DELTA object comparing both timestamps
+  total = format_time(final - start if start else 0)
   print >> logFile, ("###\tTOTAL Time\tPhylogenetic Tree Reconstruction\t%s"
     + "\n###") % (total)
   logFile.close()
+
+  ## Clean-up log directory from undesirable lines
+  try:
+    sp.call(("sed -i '/^$/d' %s.log") % (oFile), shell = True)
+    sp.call(("sed -i '/^M/d' %s.log") % (oFile), shell = True)
+    sp.call(("sed -i '/\r/d' %s.log") % (oFile), shell = True)
+  except OSError:
+    print >> sys.stderr, ("ERROR: Impossible to clean-up '%s.log' log file") \
+      % (oFile)
 
   ## Before returning to the main program, get back to the original working
   ## directory
@@ -344,6 +355,7 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
   logFile.flush()
 
   try:
+    ## We add a small pipeline to avoid informatin written in the same line
     proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile,
       stdin = sp.PIPE)
   except OSError, e:
@@ -356,7 +368,8 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
     sys.exit(exit_codes[label])
 
   final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
+  ## We return a DELTA object comparing both timestamps
+  total = format_time(final - start if start else 0)
   print >> logFile, ("###\tTime\t%s\n###") % (total)
   logFile.flush()
 
