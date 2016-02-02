@@ -31,6 +31,14 @@ from operator import itemgetter
 
 available_tags = ["binary", "file", "directory", "mode", "parameter", "other"]
 
+verbose_levels = {
+  "none":    0, "0": 0,
+  "logfile": 1, "1": 1,
+  "stderr":  2, "2": 2,
+}
+
+default_verbose = "logfile"
+
 def parseComments(string_list):
   '''
   Generator used to parse a string list containing "#" symbols for comments

@@ -78,9 +78,19 @@ def alignment(parameters):
   ## generated therefore in this folder
   os.chdir(parameters["out_directory"])
 
-  ## Set output filename and log file
-  open_mode = "w" if parameters["replace"] and parameters["step"] == 0 else "a+"
-  logFile = open(oFile + ".log", open_mode)
+  ## Depending on the verbosity level - set the appropriate logfile value
+  if not "verbose" in parameters or parameters["verbose"] == 0:
+    logFile = open(os.devnull, 'wb')
+
+  ## ALL/logfile
+  elif parameters["verbose"] == 1:
+    ## Set output filename and log file
+    mode = "w" if parameters["replace"] and parameters["step"] == 0 else "a+"
+    logFile = open(oFile + ".log", mode)
+
+  ## ALL/Stderr
+  elif parameters["verbose"] == 2:
+    logFile = sys.stderr
 
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
@@ -370,16 +380,19 @@ def alignment(parameters):
   total = format_time(final - start if start else 0)
   print >> logFile, ("###\tTOTAL Time\tMultiple Sequence Alignment\t%s"
     + "\n###") % (total)
-  logFile.close()
 
-  ## Clean-up log directory from undesirable lines
-  try:
-    sp.call(("sed -i '/^$/d' %s.log") % (oFile), shell = True)
-    sp.call(("sed -i '/^M/d' %s.log") % (oFile), shell = True)
-    sp.call(("sed -i '/\r/d' %s.log") % (oFile), shell = True)
-  except OSError:
-    print >> sys.stderr, ("ERROR: Impossible to clean-up '%s.log' log file") \
-      % (oFile)
+  ## We just close logfile and clean it up when it is a file
+  if "verbose" in parameters and parameters["verbose"] == 1:
+    logFile.close()
+
+    ## Clean-up log directory from undesirable lines
+    try:
+      sp.call(("sed -i '/^$/d' %s.log") % (oFile), shell = True)
+      sp.call(("sed -i '/^M/d' %s.log") % (oFile), shell = True)
+      sp.call(("sed -i '/\r/d' %s.log") % (oFile), shell = True)
+    except OSError:
+      print >> sys.stderr, ("ERROR: Impossible to clean-up '%s.log' log file") \
+        % (oFile)
 
   ## Update the input file parameter and return the dictionary containing all
   ## parameters. Those parameters may be used in other steps

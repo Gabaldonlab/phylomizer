@@ -55,8 +55,8 @@ import datetime
 from module_homology import homology
 from module_trees import phylogenetic_trees
 from module_alignments import alignment, min_seqs_analysis
-from module_utils import readConfig, printConfig
-from module_utils import lookForFile, lookForDirectory, format_time
+from module_utils import readConfig, printConfig, default_verbose, format_time
+from module_utils import lookForFile, lookForDirectory, verbose_levels
 
 ## Get dinamically version
 #~ from _version import get_versions
@@ -108,6 +108,11 @@ if __name__ == "__main__":
 
   parser.add_argument("--version", action = "version", version ='%(prog)s \"' \
     + __version + "\"")
+
+  parser.add_argument("-v", "--verbose", dest = "verbose", type = str, default \
+    = None, choices = sorted(verbose_levels.keys()), help = "Set how informati"
+    + "on should be dumped. It could be used levels or tags\nIt overwrites what"
+    + "ever is set on the configuration file.")
 
   ## If no arguments are given, just show the help and finish
   if len(sys.argv) == 1:
@@ -204,9 +209,36 @@ if __name__ == "__main__":
     if not "both_direction" in parameters:
       parameters["both_direction"] = True
 
+  ## Configure level of verbosity
+  if not "verbose" in parameters and not args.verbose:
+    parameters["verbose"] = verbose_levels[default_verbose]
+
+  elif "verbose" in parameters and not parameters["verbose"] in verbose_levels:
+    sys.exit(("ERROR: Check your 'verbose' parameter. Available tags/levels [ '"
+    + "%s' ]") % "', '".join(sorted(verbose_levels.keys())))
+
+  else:
+    key = args.verbose if args.verbose else parameters["verbose"]
+    parameters["verbose"] = verbose_levels[key]
+
   ## Print all set-up parameters
-  printConfig(parameters)
-  
+  if parameters["verbose"] > 0:
+    printConfig(parameters)
+
+  ## If verbosity has to be redirected to no-where or to a specific log-file,
+  ## open that file - depending on existence/replace flag - and dump the
+  ## appropriate content there - In case of no verbosity it will be nothing.
+  if parameters["verbose"] in [0, 1]:
+    ## Get output folder/generic filename - and open log file
+    oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
+    logFile = open(oFile + ".log", "w" if parameters["replace"] else "a+")
+
+    if parameters["verbose"] == 1:
+      ## We don't want to lose all configuration so we set the step to 1
+      printConfig(parameters, logFile)
+      parameters["step"] = 1
+    logFile.close()
+
   ## We start counting the time for the whole process
   start = datetime.datetime.now()
 
@@ -235,12 +267,18 @@ if __name__ == "__main__":
   ## Get final time
   final = datetime.datetime.now()
 
-  ## Get output folder/generic filename - Set output filename and log file
-  oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
-  logFile = open(oFile + ".log", "a+")
-
   ## We return a DELTA object comparing both timestamps
   steps = "', '".join(args.steps)
   total = format_time(final - start if start else 0)
-  print >> logFile, ("\n###\tTOTAL Time\t[ '%s' ]\t%s\n###") % (steps, total)
-  logFile.close()
+
+  ## Dump into stderr - when requested all verbose info or just stderr
+  if parameters["verbose"] > 0:
+    print >> sys.stderr, ("\n###\tTOTAL Time\t[ '%s' ]\t%s\n###") % (steps, total)
+
+  ## Dump into logfile - when requested all verbose info or just logfile
+  if parameters["verbose"] == 1:
+    ## Get output folder/generic filename - Set output filename and log file
+    oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
+    logFile = open(oFile + ".log", "a+")
+    print >> logFile, ("\n###\tTOTAL Time\t[ '%s' ]\t%s\n###") % (steps, total)
+    logFile.close()
