@@ -389,11 +389,6 @@ def alignment(parameters):
   ## directory
   os.chdir(current_directory)
 
-  ## Finish the execution just before going back to the main program since there
-  ## are not enough sequences to build any alignment
-  if numSeqs < 3:
-    sys.exit(80)
-
   return parameters
 
 def check_count_sequences(in_file, in_format = "fasta"):

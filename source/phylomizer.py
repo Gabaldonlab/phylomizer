@@ -42,16 +42,21 @@ desc = """
 
   3) Phylogenetic tree reconstruction using fast model selection over NJ
      trees. It is possible to reconstruct trees using AA, NT or Codons.
+
+  Steps could be performed all together, individually or some combinations of
+  them e.g. homology + alignments, alignments + trees.
 """
 
 import os
 import sys
 import argparse
+import datetime
 
 from module_homology import homology
-from module_alignments import alignment, min_seqs_analysis
 from module_trees import phylogenetic_trees
-from module_utils import readConfig, lookForDirectory, lookForFile, printConfig
+from module_alignments import alignment, min_seqs_analysis
+from module_utils import readConfig, printConfig
+from module_utils import lookForFile, lookForDirectory, format_time
 
 ## Get dinamically version
 #~ from _version import get_versions
@@ -79,7 +84,7 @@ if __name__ == "__main__":
     help = "Set the maximum accepted homology hits after filtering for e-value/"
     + "coverage.\nThis parameter overwrites whatever is set on the config file.")
 
-  parser.add_argument("--step", dest = "steps", type = str, default = ["all"],
+  parser.add_argument("--steps", dest = "steps", type = str, default = ["all"],
     choices = ["all", "homology", "alignments", "trees"], nargs = "*", help = \
     "Set which step/s should be performed by the script")
 
@@ -111,10 +116,17 @@ if __name__ == "__main__":
 
   args = parser.parse_args()
 
-  print args.steps
+  ## Check which steps should be performed. Some combinations are not allowed
+  if len(args.steps) > 1 and "all" in args.steps:
+    sys.exit(("ERROR: Check selected steps - 'all' cannot be combined with "
+    + "others: [ '%s' ]") % ("', '".join(args.steps)))
 
-  exit()
+  if set(args.steps) ^ set(["homology", "trees"]) == set():
+    sys.exit(("ERROR: Check selected steps - 'homology' + 'trees' is not allow"
+    + "ed: [ '%s' ]") % ("', '".join(args.steps)))
 
+  if "all" in args.steps:
+    args.steps = ["homology", "alignments", "trees"]
 
   ## Get current directory - we will use this for normalizing input files and
   ## directories to their absolute paths
@@ -131,12 +143,13 @@ if __name__ == "__main__":
 
   ## Check parameters related to files / directories
   if not lookForFile(args.inFile):
-    sys.exit(("ERROR: Check input QUERY SEQUENCE/s file '%s'") % (args.inFile))
+    sys.exit(("ERROR: Check input SEQUENCE/s file '%s'") % (args.inFile))
   parameters.setdefault("in_file", os.path.abspath(args.inFile))
 
-  if not lookForFile(args.dbFile):
-    sys.exit(("ERROR: Check input TARGET SEQUENCES file '%s'") % (args.dbFile))
-  parameters.setdefault("db_file", os.path.abspath(args.dbFile))
+  if "homology" in args.steps:
+    if not lookForFile(args.dbFile):
+      sys.exit(("ERROR: Check input TARGET SEQUENCES file '%s'") % (args.dbFile))
+    parameters.setdefault("db_file", os.path.abspath(args.dbFile))
 
   if args.cdsFile:
     if not lookForFile(args.cdsFile):
@@ -158,53 +171,76 @@ if __name__ == "__main__":
   ## Read the other parameters from the input config file
   parameters.update(readConfig(parameters["config_file"]))
 
-  ## Check specific values for input parameters.
-  if not "coverage" in parameters or not (0.0 < float(parameters["coverage"]) \
-    <= 1.0):
-    sys.exit(("ERROR: Check your 'coverage' parameter"))
+  ## Check parameters specific to the homology search
+  if "homology" in args.steps:
+    ## Check specific values for input parameters.
+    if not "coverage" in parameters or not (0.0 < float(parameters["coverage"]) \
+      <= 1.0):
+      sys.exit(("ERROR: Check your 'coverage' parameter"))
 
-  ## Overwrite maximum homology hits when set any value by command-line
-  if args.maxHits:
-    parameters["hits"] = args.maxHits
+    ## Overwrite maximum homology hits when set any value by command-line
+    if args.maxHits:
+      parameters["hits"] = args.maxHits
 
-  if not "hits" in parameters or (parameters["hits"].isdigit() and \
-    int(parameters["hits"]) < 1)  or (not parameters["hits"].isdigit() \
-    and parameters["hits"] != "no_limit"):
-    sys.exit(("ERROR: Check your 'homology accepted hits' upper limit value"))
+    if not "hits" in parameters or (parameters["hits"].isdigit() and \
+      int(parameters["hits"]) < 1)  or (not parameters["hits"].isdigit() \
+      and parameters["hits"] != "no_limit"):
+      sys.exit(("ERROR: Check your 'homology accepted hits' upper limit value"))
 
-  ## Set minimum sequences number for any alignment/tree has to be reconstructed
-  if not "min_seqs" in parameters and not args.minSeqs:
-    parameters.setdefault("min_seqs", min_seqs_analysis)
+  ## Check parameters specific to the alignment and tree reconstruction steps
+  if set(["alignments", "trees"]) & set(args.steps) != set():
+    ## Set minimum sequences number for any alignment/tree has to be reconstructed
+    if not "min_seqs" in parameters and not args.minSeqs:
+      parameters.setdefault("min_seqs", min_seqs_analysis)
 
-  elif args.minSeqs:
-    parameters["min_seqs"] = args.minSeqs
+    elif args.minSeqs:
+      parameters["min_seqs"] = args.minSeqs
 
-  if not parameters["min_seqs"].isdigit() or int(parameters["min_seqs"]) < 1:
-    sys.exit(("ERROR: Check your 'minimum sequnces number' value"))
+    if not parameters["min_seqs"].isdigit() or int(parameters["min_seqs"]) < 1:
+      sys.exit(("ERROR: Check your 'minimum sequnces number' value"))
 
-  ## Check whether alignment will be reconstructed in one or two directions, i.e
-  ## head and tails.
-  if not "both_direction" in parameters:
-    parameters["both_direction"] = True
+    ## Check whether alignment will be reconstructed in one or two directions, 
+    ## i.e. head and tails.
+    if not "both_direction" in parameters:
+      parameters["both_direction"] = True
 
   ## Print all set-up parameters
   printConfig(parameters)
+  
+  ## We start counting the time for the whole process
+  start = datetime.datetime.now()
 
   ## Launch the whole homology process - update some values in the parameters
   ## dictionary. It is needed to perform appropiately the next step
-  parameters.update(homology(parameters))
+  if "homology" in args.steps:
+    parameters.update(homology(parameters))
 
-  ## Assign which step is being executed. It is useful to know whether the log
-  ## file should be replaced or not - even when the flag "replace" is set
-  parameters["step"] = 1
+    ## Assign which step is being executed. It is useful to know whether the log
+    ## file should be replaced or not - even when the flag "replace" is set
+    parameters["step"] += 1
 
   ## Reconstruct the Multiple Sequence Alignment for the selected sequences
-  parameters.update(alignment(parameters))
+  if "alignments" in args.steps:
+    parameters.update(alignment(parameters))
 
-  ## Assign which step is being executed. It is useful to know whether the log
-  ## file should be replaced or not - even when the flag "replace" is set
-  parameters["step"] = 2
+    ## Assign which step is being executed. It is useful to know whether the log
+    ## file should be replaced or not - even when the flag "replace" is set
+    parameters["step"] += 1
 
-  ## Reconstruct the Multiple Sequence Alignment for the input Sequences
-  phylogenetic_trees(parameters)
+  ## Reconstruct the phylogenetic tree for the input alignment either generated
+  ## on a previous step or given as input
+  if "trees" in args.steps:
+    phylogenetic_trees(parameters)
 
+  ## Get final time
+  final = datetime.datetime.now()
+
+  ## Get output folder/generic filename - Set output filename and log file
+  oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
+  logFile = open(oFile + ".log", "a+")
+
+  ## We return a DELTA object comparing both timestamps
+  steps = "', '".join(args.steps)
+  total = format_time(final - start if start else 0)
+  print >> logFile, ("\n###\tTOTAL Time\t[ '%s' ]\t%s\n###") % (steps, total)
+  logFile.close()

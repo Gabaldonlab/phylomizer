@@ -46,11 +46,13 @@ desc = """
 import os
 import sys
 import argparse
+import datetime
 
 from module_homology import homology
-from module_alignments import alignment, min_seqs_analysis
 from module_trees import phylogenetic_trees
-from module_utils import readConfig, lookForDirectory, lookForFile, printConfig
+from module_alignments import alignment, min_seqs_analysis
+from module_utils import readConfig, printConfig
+from module_utils import lookForFile, lookForDirectory, format_time
 
 ## Get dinamically version
 #~ from _version import get_versions
@@ -180,6 +182,18 @@ if __name__ == "__main__":
   ## Print all set-up parameters
   printConfig(parameters)
 
+
+  ## Get output folder/generic filename - and open log file
+  oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
+  logFile = open(oFile + ".log", "w" if parameters["replace"] else "a+")
+ 
+  printConfig(parameters, logFile)
+  parameters["step"] = 1
+  logFile.close()
+
+  ## We start counting the time for the whole process
+  start = datetime.datetime.now()
+  
   ## Launch the whole homology process - update some values in the parameters
   ## dictionary. It is needed to perform appropiately the next step
   parameters.update(homology(parameters))
@@ -198,3 +212,15 @@ if __name__ == "__main__":
   ## Reconstruct the Multiple Sequence Alignment for the input Sequences
   phylogenetic_trees(parameters)
 
+  ## Get final time
+  final = datetime.datetime.now()
+
+  ## Get output folder/generic filename - Set output filename and log file
+  oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
+  logFile = open(oFile + ".log", "a+")
+
+  ## We return a DELTA object comparing both timestamps
+  total = format_time(final - start if start else 0)
+  print >> sys.stderr, ("\n###\tTOTAL Time\t[ 'PIPELINE' ]\t%s\n###") % (total)
+  print >> logFile, ("\n###\tTOTAL Time\t[ 'PIPELINE' ]\t%s\n###") % (total)
+  logFile.close()

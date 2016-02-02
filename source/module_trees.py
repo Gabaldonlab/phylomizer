@@ -120,6 +120,25 @@ def phylogenetic_trees(parameters):
   if not "readal" in parameters:
     sys.exit("ERROR: Check your CONFIG file. 'readAl' is not available")
 
+  ## Create a temporary FASTA file which will be used to detect the sequence
+  ## number on the input alignment and the presence of rare amino-acids
+  TEMPFILE = tempfile.NamedTemporaryFile()
+  convertInputFile_Format("readal", parameters["readal"], parameters["in_file"],
+    TEMPFILE.name, "fasta", logFile, parameters["replace"])
+  TEMPFILE.flush()
+
+  numSeqs, selenocys, pyrrolys = check_count_sequences(TEMPFILE.name)
+
+  ## Set the minimum number of sequences required to reconstruct an alignment
+  min_seqs = int(parameters["min_seqs"] if "min_seqs" in parameters else \
+    min_seqs_analysis)
+  
+  ## Finish when there are not enough sequences to make an alignment
+  if numSeqs < min_seqs:
+    print >> logFile, ("### INFO: It is necessary, at least, %d sequences to "
+      + "to reconstruct an alignment (%d)") % (min_seqs, numSeqs)
+    sys.exit(80)
+
   ## Check which approaches should be used for the phylogenetic reconstruction
   ## and whether there are specific program's parameters for them
   if not "tree_approach" in parameters:
@@ -141,21 +160,9 @@ def phylogenetic_trees(parameters):
   if others != set():
     tree_approaches += sorted(others)
 
-  ## Check input alignment when using RAxML since it may crash when
-  ## Selenocysteines or Pyrrolysines are present in the input alignment
+  ## When using RAxML, it may crash when Selenocysteines or Pyrrolysines are
+  ## present in the input alignment
   if prog in ["raxml"]:
-
-    ## Create a temporary FASTA file which will be used to detect the presence
-    ## of rare amino-acids
-    TEMPFILE = tempfile.NamedTemporaryFile()
-    convertInputFile_Format("readal", parameters["readal"], parameters["in_file"],
-      TEMPFILE.name, "fasta", logFile, parameters["replace"])
-    TEMPFILE.flush()
-
-    ## Analyze input alignment looking for the presence of Selenocysteines /
-    ## Pyrrolysines
-    numSeqs, selenocys, pyrrolys = check_count_sequences(TEMPFILE.name)
-
     ## If Selenocysteines or Pyrrolysines are present, substitute them by "X"
     if selenocys or pyrrolys:
       out_file = ("%s.no_rare_aa") % (parameters["in_file"])
