@@ -32,8 +32,11 @@ from hashlib import md5
 from string import strip
 from socket import getfqdn
 from getpass import getuser
-from module_utils import lookForDirectory, lookForFile, splitSequence, \
-  format_time
+from module_utils import lookForFile, splitSequence
+from module_utils import format_time, lookForDirectory
+
+## Define the minimum sequences number to reconstruct any alignment/tree
+min_seqs_analysis = "3"
 
 file_extension = {
   "prank":          "prk",
@@ -130,236 +133,233 @@ def alignment(parameters):
   numSeqs, selenocys, pyrrolys = check_count_sequences(parameters["in_file"])
 
   ## Set the minimum number of sequences required to reconstruct an alignment
-  min_numb_seqs = int(parameters["min_seqs_alignment"]) if "min_seqs_alignment"\
-     in parameters else 2
+  min_seqs = int(parameters["min_seqs"] if "min_seqs" in parameters else \
+    min_seqs_analysis)
+  
   ## Finish when there are not enough sequences to make an alignment
-  if numSeqs < min_numb_seqs:
+  if numSeqs < min_seqs:
     print >> logFile, ("### INFO: It is necessary, at least, %d sequences to "
-      + "to reconstruct an alignment (%d)") % (min_numb_seqs, numSeqs)
+      + "to reconstruct an alignment (%d)") % (min_seqs, numSeqs)
     sys.exit(80)
 
   ## Otherwise, process the input sequence, substitute rare amino-acids and
   ## reverse input sequences when neccesary
-  else:
+  
+  ## Reverse input sequences if needed it
+  if parameters["both_direction"]:
 
-    ## Reverse input sequences if needed it
+    ## If get an positive answer means, the reverse sequence file has been
+    ## generated and therefore any downstream file should be over-written
+    out_file = ("%s.seqs.reverse") % (oFile)
+
+    if reverseSequences(parameters["readal"], parameters["in_file"], \
+      out_file, parameters["replace"], logFile):
+      parameters["replace"] = True
+
+  ## Substitute rare amino-acids if needed it
+  if selenocys or pyrrolys:
+
+    out_file = ("%s.seqs.no_rare_aa") % (oFile)
+
+    ## If the output file has been generated, over-write, if any, downstream
+    ## files
+    if replaceRareAminoAcids(parameters["in_file"], out_file, \
+      parameters["replace"], logFile, parameters["in_letter"]):
+      parameters["replace"] = True
+
+    ## If there is a reverse file, replace also the rare amino-acids in that one
     if parameters["both_direction"]:
 
-      ## If get an positive answer means, the reverse sequence file has been
-      ## generated and therefore any downstream file should be over-written
-      out_file = ("%s.seqs.reverse") % (oFile)
+      in_file = ("%s.seqs.reverse") % (oFile)
+      out_file = ("%s.seqs.no_rare_aa.reverse") % (oFile)
 
-      if reverseSequences(parameters["readal"], parameters["in_file"], \
-        out_file, parameters["replace"], logFile):
+      ## Replace any downstream file is the current one is generated again
+      if replaceRareAminoAcids(in_file, out_file, parameters["replace"], \
+        logFile, parameters["in_letter"]):
         parameters["replace"] = True
 
-    ## Substitute rare amino-acids if needed it
-    if selenocys or pyrrolys:
+  ## Set in which directions alignments will be reconstructed
+  directions = ["forward"]
+  if parameters["both_direction"]:
+    directions.append("reverse")
 
-      out_file = ("%s.seqs.no_rare_aa") % (oFile)
+  generated_alignments = set()
+  ## Once all required sequence files has been set-up, proceed to build the
+  ## alignments itself.
+  for prog in parameters["alignment"]:
 
-      ## If the output file has been generated, over-write, if any, downstream
-      ## files
-      if replaceRareAminoAcids(parameters["in_file"], out_file, \
-        parameters["replace"], logFile, parameters["in_letter"]):
-        parameters["replace"] = True
+    ## Get binary as well as any input parameters for each aligner and the
+    ## output file extension
+    binary = parameters[prog]
 
-      ## If there is a reverse file, replace also the rare amino-acids in that
-      ## file
-      if parameters["both_direction"]:
+    key = ("%s_params") % (prog)
+    params = parameters[key] if key in parameters else ""
 
-        in_file = ("%s.seqs.reverse") % (oFile)
-        out_file = ("%s.seqs.no_rare_aa.reverse") % (oFile)
+    altern_ext = ("%s%s") % (prog[:2], prog[-1])
+    extension = file_extension[prog] if prog in file_extension else altern_ext
 
-        ## Replace any downstream file is the current one is generated again
-        if replaceRareAminoAcids(in_file, out_file, parameters["replace"], \
-          logFile, parameters["in_letter"]):
-          parameters["replace"] = True
+    ## Generate as many alignments as needed
+    for direc in directions:
 
-    ## Set in which directions alignments will be reconstructed
-    directions = ["forward"]
-    if parameters["both_direction"]:
-      directions.append("reverse")
+      ## Set the input file depending on the presence of rare amino-acids
+      if direc == "forward":
+        in_file = ("%s.seqs.no_rare_aa") % (oFile) if selenocys \
+          or pyrrolys else parameters["in_file"]
+      else:
+        in_file = ("%s.seqs.no_rare_aa.reverse") % (oFile) if selenocys \
+          or pyrrolys else ("%s.seqs.reverse") % (oFile)
 
-    generated_alignments = set()
-    ## Once all required sequence files has been set-up, proceed to build the
-    ## alignments itself.
-    for prog in parameters["alignment"]:
+      out_file = ("%s.alg.%s%s.%s") % (oFile, "no_rare_aa." if selenocys \
+        or pyrrolys else "", direc, extension)
 
-      ## Get binary as well as any input parameters for each aligner and the
-      ## output file extension
-      binary = parameters[prog]
-
-      key = ("%s_params") % (prog)
-      params = parameters[key] if key in parameters else ""
-
-      altern_ext = ("%s%s") % (prog[:2], prog[-1])
-      extension = file_extension[prog] if prog in file_extension else altern_ext
-
-      ## Generate as many alignments as needed
-      for direc in directions:
-
-        ## Set the input file depending on the presence of rare amino-acids
-        if direc == "forward":
-          in_file = ("%s.seqs.no_rare_aa") % (oFile) if selenocys \
-            or pyrrolys else parameters["in_file"]
-        else:
-          in_file = ("%s.seqs.no_rare_aa.reverse") % (oFile) if selenocys \
-            or pyrrolys else ("%s.seqs.reverse") % (oFile)
-
-        out_file = ("%s.alg.%s%s.%s") % (oFile, "no_rare_aa." if selenocys \
-          or pyrrolys else "", direc, extension)
-
-        ## Perfom alignment and check whether it has been generated or already
-        ## exist
-        if perfomAlignment(prog, binary, params, in_file, out_file,
-          logFile, parameters["replace"]):
-          parameters["replace"] = True
-
-        ## If any Selenocysteine or Pyrrolyseine is present, generate the
-        ## final alignment removing the wild cards and putting back the original
-        ## amino-acids
-        if selenocys or pyrrolys:
-          ## Get real output filename
-          alt_file = ("%s.alg.%s.%s") % (oFile, direc, extension)
-
-          ## Make the change and record whether files has been generated de-novo
-          if replaceRareAminoAcids(out_file, alt_file, parameters["replace"], \
-            logFile, parameters["in_letter"], back = True):
-            parameters["replace"] = True
-
-          ## We over-write out_file variable with the current outfile name. We
-          ## will store such output file in case a meta-alignment has to be
-          ## generated
-          out_file = alt_file
-
-        ## For reverse alignment, get its reverse - meaning get residues
-        ## according to the initial order
-        if direc == "reverse":
-          in_file = ("%s.alg.reverse.%s") % (oFile, extension)
-          out_file = ("%s.alg.reverse.forw.%s") % (oFile, extension)
-
-          if reverseSequences(parameters["readal"], in_file, out_file, \
-            parameters["replace"], logFile):
-            parameters["replace"] = True
-
-        ## Store all output alignments
-        generated_alignments.add(out_file)
-
-    if len(generated_alignments) > 1 and "consensus" in parameters:
-
-      prog = parameters["consensus"][0]
-      if not prog in parameters:
-        sys.exit(("ERROR: Selected program '%s' is not available accordding to "
-          "the configuration file") % (prog))
-
-      ## Get binary as well as any input parameters for each aligner and the
-      ## output file extension
-      binary = parameters[prog]
-      prog_params = ("%s_params") % (prog)
-
-      params = parameters[prog_params] if prog_params in parameters else ""
-      params = ("%s -aln %s") % (params, " ".join(generated_alignments))
-
-      out_file = ("%s.alg.metalig") % (oFile)
-      if perfomAlignment(prog, binary, params, parameters["in_file"], out_file,
+      ## Perfom alignment and check whether it has been generated or already
+      ## exist
+      if perfomAlignment(prog, binary, params, in_file, out_file,
         logFile, parameters["replace"]):
         parameters["replace"] = True
 
-      ## Make such untrimmed alignment it is in phylip format
-      convertInputFile_Format("readal", parameters["readal"], out_file,out_file,
-        "phylip", logFile, parameters["replace"])
+      ## If any Selenocysteine or Pyrrolyseine is present, generate the final
+      ## alignment removing the wild cards and putting back the original amino-
+      ## acids
+      if selenocys or pyrrolys:
+        ## Get real output filename
+        alt_file = ("%s.alg.%s.%s") % (oFile, direc, extension)
 
-    ## Set the current output alignment as the one generated at a previous step
-    else:
-      out_file = generated_alignments.pop()
+        ## Make the change and record whether files has been generated de-novo
+        if replaceRareAminoAcids(out_file, alt_file, parameters["replace"], \
+          logFile, parameters["in_letter"], back = True):
+          parameters["replace"] = True
 
-      ## Make such untrimmed alignment it is in phylip format
-      convertInputFile_Format("readal", parameters["readal"], out_file,out_file,
-        "phylip", logFile, parameters["replace"])
+        ## We over-write out_file variable with the current outfile name.We will
+        ## store such output file in case a meta-alignment has to be generated
+        out_file = alt_file
 
-    ## Either we have to trim the final alignment or we have to backtranslate to
-    ## codons/nucleotides, we will need to check for a program - hopefully
-    ## trimAl - to make the job
-    if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"] or "trimming" \
-      in parameters:
+      ## For reverse alignment, get its reverse - meaning get residues according
+      ## to the initial order
+      if direc == "reverse":
+        in_file = ("%s.alg.reverse.%s") % (oFile, extension)
+        out_file = ("%s.alg.reverse.forw.%s") % (oFile, extension)
 
-      prog = parameters["trimming"][0]
-      if not prog in parameters:
-        sys.exit(("ERROR: Selected program '%s' is not available accordding to "
-          "the configuration file") % (prog))
+        if reverseSequences(parameters["readal"], in_file, out_file, \
+          parameters["replace"], logFile):
+          parameters["replace"] = True
 
-      ## Get binary as well as any input parameters for each aligner and the
-      ## output file extension
-      binary = parameters[prog]
+      ## Store all output alignments
+      generated_alignments.add(out_file)
 
-    ## If the modes "prot2codon" or "prot2nuc" are selected - backtranslated the
-    ## untrimmed/final alignment
-    if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
+  if len(generated_alignments) > 1 and "consensus" in parameters:
+    prog = parameters["consensus"][0]
+    if not prog in parameters:
+      sys.exit(("ERROR: Selected program '%s' is not available accordding to "
+        "the configuration file") % (prog))
 
-      prog_params = ("%s_cds") % (prog)
-      params = parameters[prog_params] if prog_params in parameters else ""
+    ## Get binary as well as any input parameters for each aligner and the
+    ## output file extension
+    binary = parameters[prog]
+    prog_params = ("%s_params") % (prog)
 
-      if (trimmingAlignment(prog, binary, params, out_file + "_cds", logFile,
-        parameters["replace"], in_file = out_file, cds = parameters["cds"])):
-        parameters["replace"] = True
+    params = parameters[prog_params] if prog_params in parameters else ""
+    params = ("%s -aln %s") % (params, " ".join(generated_alignments))
 
-      ## Make such untrimmed alignment it is in phylip format
-      convertInputFile_Format("readal", parameters["readal"], out_file + "_cds",
-        out_file + "_cds" ,"phylip", logFile, parameters["replace"])
+    out_file = ("%s.alg.metalig") % (oFile)
+    if perfomAlignment(prog, binary, params, parameters["in_file"], out_file,
+      logFile, parameters["replace"]):
+      parameters["replace"] = True
 
-    ## If set, trim resulting alignment
-    if "trimming" in parameters:
-      prog = parameters["trimming"][0]
-      if not prog in parameters:
-        sys.exit(("ERROR: Selected program '%s' is not available accordding to "
-          "the configuration file") % (prog))
+    ## Make such untrimmed alignment it is in phylip format
+    convertInputFile_Format("readal", parameters["readal"], out_file,out_file,
+      "phylip", logFile, parameters["replace"])
 
-      ## Get binary as well as any input parameters for each aligner and the
-      ## output file extension
-      prog_params = ("%s_params") % (prog)
-      params = parameters[prog_params] if prog_params in parameters else ""
+  ## Set the current output alignment as the one generated at a previous step
+  else:
+    out_file = generated_alignments.pop()
 
-      clean_file = ("%s.alg.clean") % (oFile)
+    ## Make such untrimmed alignment it is in phylip format
+    convertInputFile_Format("readal", parameters["readal"], out_file,out_file,
+      "phylip", logFile, parameters["replace"])
 
-      prog_params = ("%s_compare") % (prog)
-      if len(generated_alignments) > 1:
+  ## Either we have to trim the final alignment or we have to backtranslate to
+  ## codons/nucleotides, we will need to check for a program - hopefully
+  ## trimAl - to make the job
+  if parameters["residue_datatype"] in ["prot2codon","prot2nuc"] or "trimming" \
+    in parameters:
+
+    prog = parameters["trimming"][0]
+    if not prog in parameters:
+      sys.exit(("ERROR: Selected program '%s' is not available accordding to "
+        "the configuration file") % (prog))
+
+    ## Get binary as well as any input parameters for each aligner and the
+    ## output file extension
+    binary = parameters[prog]
+
+  ## If the modes "prot2codon" or "prot2nuc" are selected - backtranslated the
+  ## untrimmed/final alignment
+  if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
+
+    prog_params = ("%s_cds") % (prog)
+    params = parameters[prog_params] if prog_params in parameters else ""
+
+    if (trimmingAlignment(prog, binary, params, out_file + "_cds", logFile,
+      parameters["replace"], in_file = out_file, cds = parameters["cds"])):
+      parameters["replace"] = True
+
+    ## Make such untrimmed alignment it is in phylip format
+    convertInputFile_Format("readal", parameters["readal"], out_file + "_cds",
+      out_file + "_cds" ,"phylip", logFile, parameters["replace"])
+
+  ## If set, trim resulting alignment
+  if "trimming" in parameters:
+    prog = parameters["trimming"][0]
+    if not prog in parameters:
+      sys.exit(("ERROR: Selected program '%s' is not available accordding to "
+        "the configuration file") % (prog))
+
+    ## Get binary as well as any input parameters for each aligner and the
+    ## output file extension
+    prog_params = ("%s_params") % (prog)
+    params = parameters[prog_params] if prog_params in parameters else ""
+
+    clean_file = ("%s.alg.clean") % (oFile)
+
+    prog_params = ("%s_compare") % (prog)
+    if len(generated_alignments) > 1:
+      if prog_params in parameters:
+        params = ("%s %s") % (params, parameters[prog_params])
+
+      path_file = ("%s.alg.paths") % (oFile)
+      print >> open(path_file, "w"), "\n".join(generated_alignments)
+
+      trimmingAlignment(prog, binary, params, clean_file, logFile,
+        parameters["replace"], compare_msa = path_file, force_refer_msa = \
+        out_file)
+
+      ## If the backtranslation to codon/nucleotides is required, do it
+      if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
+        prog_params = ("%s_cds") % (prog)
         if prog_params in parameters:
           params = ("%s %s") % (params, parameters[prog_params])
 
-        path_file = ("%s.alg.paths") % (oFile)
-        print >> open(path_file, "w"), "\n".join(generated_alignments)
-
-        trimmingAlignment(prog, binary, params, clean_file, logFile,
+        trimmingAlignment(prog, binary, params, clean_file + "_cds", logFile,
           parameters["replace"], compare_msa = path_file, force_refer_msa = \
-          out_file)
+          out_file, cds = parameters["cds"])
 
-        ## If the backtranslation to codon/nucleotides is required, do it
-        if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
-          prog_params = ("%s_cds") % (prog)
-          if prog_params in parameters:
-            params = ("%s %s") % (params, parameters[prog_params])
+    else:
+      trimmingAlignment(prog, binary, params, clean_file, logFile,
+        parameters["replace"], in_file = out_file)
 
-          trimmingAlignment(prog, binary, params, clean_file + "_cds", logFile,
-            parameters["replace"], compare_msa = path_file, force_refer_msa = \
-            out_file, cds = parameters["cds"])
+      ## If the backtranslation to codon/nucleotides is required, do it
+      if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
+        prog_params = ("%s_cds") % (prog)
+        if prog_params in parameters:
+          params = ("%s %s") % (params, parameters[prog_params])
 
-      else:
-        trimmingAlignment(prog, binary, params, clean_file, logFile,
-          parameters["replace"], in_file = out_file)
+        trimmingAlignment(prog, binary, params, clean_file + "_cds", logFile,
+          parameters["replace"], in_file = out_file, cds = parameters["cds"])
 
-        ## If the backtranslation to codon/nucleotides is required, do it
-        if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
-          prog_params = ("%s_cds") % (prog)
-          if prog_params in parameters:
-            params = ("%s %s") % (params, parameters[prog_params])
-
-          trimmingAlignment(prog, binary, params, clean_file + "_cds", logFile,
-            parameters["replace"], in_file = out_file, cds = parameters["cds"])
-
-      ## After the trimming, set the final output file as the trimmed file
-      out_file = clean_file + ("_cds" if parameters["residue_datatype"] in \
-        ["prot2codon", "prot2nuc"] else "")
+    ## After the trimming, set the final output file as the trimmed file
+    out_file = clean_file + ("_cds" if parameters["residue_datatype"] in \
+      ["prot2codon", "prot2nuc"] else "")
 
   final = datetime.datetime.now()
   date = final.strftime("%H:%M:%S %m/%d/%y")

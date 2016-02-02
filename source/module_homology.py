@@ -30,8 +30,8 @@ from hashlib import md5
 from socket import getfqdn
 from string import strip, capitalize, ljust
 from module_alignments import convertInputFile_Format
-from module_utils import lookForDirectory, lookForFile, splitSequence, \
-  parseComments, format_time, sort_blast_hits, sort_hmmer_hits
+from module_utils import parseComments, lookForDirectory, sort_blast_hits
+from module_utils import lookForFile, splitSequence, format_time, sort_hmmer_hits
 
 ## Exit code meanings
 ##  80: Not enough sequences

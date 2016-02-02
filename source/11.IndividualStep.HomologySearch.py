@@ -30,7 +30,6 @@ desc = """
   This is free software, and you are welcome to redistribute it
   under certain conditions;
   --
-
   Individual script to perform exclusively the HOMOLOGY SEARCH step included
   into the main pipeline
 """
@@ -58,7 +57,11 @@ if __name__ == "__main__":
 
   parser.add_argument("-i", "--in", dest = "inFile", type = str, default = None,
     help = "Input file containing the query sequence/s")
-
+    
+  parser.add_argument("--max_hits", dest = "maxHits", type = str, default = None,
+    help = "Set the maximum accepted homology hits after filtering for e-value/"
+    + "coverage.\nThis parameter overwrites whatever is set on the config file.")
+    
   parser.add_argument("-d", "--db", dest = "dbFile", type = str, default = None,
     help = "Input file containing the target sequence database")
 

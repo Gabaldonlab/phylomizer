@@ -30,7 +30,6 @@ desc = """
   This is free software, and you are welcome to redistribute it
   under certain conditions;
   --
-
   Script which combines the last two steps of the main pipeline in order to
   perform the reconstruct a MULTIPLE SEQUENCE ALIGNMENT (MSA) for the input
   sequences provided and to infer a PHYLOGENETIC TREE using as input the
@@ -61,6 +60,10 @@ if __name__ == "__main__":
 
   parser.add_argument("-i", "--in", dest = "inFile", type = str, default = None,
     help = "Input file containing the query sequence/s")
+
+  parser.add_argument("--min_seqs", dest = "minSeqs", type = str, default = None,
+    help = "Set the minimum sequences number to reconstruct an alignment/tree."
+    + "\nThis parameter overwrites whatever is set on the config file.")
 
   parser.add_argument("--cds", dest = "cdsFile", type = str, default = None,
     help = "Input file containing CDS corresponding to input protein seqs")

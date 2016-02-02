@@ -59,6 +59,10 @@ if __name__ == "__main__":
   parser.add_argument("-i", "--in", dest = "inFile", type = str, default = None,
     help = "Input file containing the query sequence/s")
 
+  parser.add_argument("--min_seqs", dest = "minSeqs", type = str, default = None,
+    help = "Set the minimum sequences number to reconstruct an alignment/tree."
+    + "\nThis parameter overwrites whatever is set on the config file.")
+
   parser.add_argument("--cds", dest = "cdsFile", type = str, default = None,
     help = "Input file containing CDS corresponding to input protein seqs")
 

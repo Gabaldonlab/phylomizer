@@ -30,7 +30,6 @@ desc = """
   This is free software, and you are welcome to redistribute it
   under certain conditions;
   --
-
   Script which combines the first two steps of the main pipeline in order
   to perform the HOMOLOGY SEARCH and then the MULTIPLE SEQUENCE ALIGNMENT
   reconstruction step
@@ -60,6 +59,14 @@ if __name__ == "__main__":
 
   parser.add_argument("-i", "--in", dest = "inFile", type = str, default = None,
     help = "Input file containing the query sequence/s")
+    
+  parser.add_argument("--min_seqs", dest = "minSeqs", type = str, default = None,
+    help = "Set the minimum sequences number to reconstruct an alignment/tree."
+    + "\nThis parameter overwrites whatever is set on the config file.")
+    
+  parser.add_argument("--max_hits", dest = "maxHits", type = str, default = None,
+    help = "Set the maximum accepted homology hits after filtering for e-value/"
+    + "coverage.\nThis parameter overwrites whatever is set on the config file.")
 
   parser.add_argument("-d", "--db", dest = "dbFile", type = str, default = None,
     help = "Input file containing the target sequence database")

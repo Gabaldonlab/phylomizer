@@ -30,7 +30,6 @@ desc = """
   This is free software, and you are welcome to redistribute it
   under certain conditions;
   --
-
   Phylogenetic tree reconstruction pipeline. It comprises three main steps:
 
   1) Homology search using tools such as BLAST or HMMER.
@@ -49,7 +48,7 @@ import sys
 import argparse
 
 from module_homology import homology
-from module_alignments import alignment
+from module_alignments import alignment, min_seqs_analysis
 from module_trees import phylogenetic_trees
 from module_utils import readConfig, lookForDirectory, lookForFile, printConfig
 
@@ -70,6 +69,14 @@ if __name__ == "__main__":
 
   parser.add_argument("-i", "--in", dest = "inFile", type = str, default = None,
     help = "Input file containing the query sequence/s")
+
+  parser.add_argument("--min_seqs", dest = "minSeqs", type = str, default = None,
+    help = "Set the minimum sequences number to reconstruct an alignment/tree."
+    + "\nThis parameter overwrites whatever is set on the config file.")
+
+  parser.add_argument("--max_hits", dest = "maxHits", type = str, default = None,
+    help = "Set the maximum accepted homology hits after filtering for e-value/"
+    + "coverage.\nThis parameter overwrites whatever is set on the config file.")
 
   parser.add_argument("-d", "--db", dest = "dbFile", type = str, default = None,
     help = "Input file containing the target sequence database")
@@ -146,10 +153,24 @@ if __name__ == "__main__":
     <= 1.0):
     sys.exit(("ERROR: Check your 'coverage' parameter"))
 
+  ## Overwrite maximum homology hits when set any value by command-line
+  if args.maxHits:
+    parameters["hits"] = args.maxHits
+
   if not "hits" in parameters or (parameters["hits"].isdigit() and \
     int(parameters["hits"]) < 1)  or (not parameters["hits"].isdigit() \
     and parameters["hits"] != "no_limit"):
-    sys.exit(("ERROR: Check your 'hits' upper limit value"))
+    sys.exit(("ERROR: Check your 'homology accepted hits' upper limit value"))
+
+  ## Set minimum sequences number for any alignment/tree has to be reconstructed
+  if not "min_seqs" in parameters and not args.minSeqs:
+    parameters.setdefault("min_seqs", min_seqs_analysis)
+
+  elif args.minSeqs:
+    parameters["min_seqs"] = args.minSeqs
+
+  if not parameters["min_seqs"].isdigit() or int(parameters["min_seqs"]) < 1:
+    sys.exit(("ERROR: Check your 'minimum sequnces number' value"))
 
   ## Check whether alignment will be reconstructed in one or two directions, i.e
   ## head and tails.

@@ -29,10 +29,16 @@ from socket import getfqdn
 from random import randint
 from operator import itemgetter
 from string import strip, lower
-from module_alignments import check_count_sequences, replaceRareAminoAcids, \
-  convertInputFile_Format, getFileFormat
-from module_utils import lookForDirectory, lookForFile, splitSequence, \
-  format_time, listDirectory
+
+from module_utils import format_time, listDirectory
+from module_utils import lookForDirectory, lookForFile, splitSequence
+
+from module_alignments import convertInputFile_Format, getFileFormat
+from module_alignments import check_count_sequences, replaceRareAminoAcids
+
+## To guarantee consistency across the pipeline, the minimum sequenes number to
+## perform any analysis is defined just in one module
+from module_alignments import  min_seqs_analysis
 
 ''' Module which implements the functionality for reconstructing phylogenetic
     trees. It contains wrappers to three different programs: PhyML, RAxML &
