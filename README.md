@@ -1,8 +1,7 @@
-PhylomeDB pipeline.
+# Phylomizer
 
-Here we present the PhylomeDB pipeline called "phylomizer" which has been used to generate more than 4 millions trees hosted at phylomedb.org.
+**Phylomizer** is an automated phylogenetics pipeline which aims to reproduce the three main step follow by traditional phylogeneticists. These steps, as shown in the image, are 1) Homology search, 2) Multiple Sequence Alignment Reconstruction, and 3) Phylogenetic Tree reconstruction.
 
-This pipeline comprises the steps followed by traditional phylogeneticists: 1) Search of homologous sequences, 2) Reconstruction of multiple sequence alignment, and 3) Inference of phylogenetic trees.
+**Phylomizer** can be used to reconstruct a single gene tree. However, it aims to assist on the reconstruction of large collection of phylogenies. In fact, **Phylomizer** has been used in phylomedb.org to generate more than 5.6 million phylogenetics tree (as January, 2016).
 
-![SchemePipeline](/docs/pipeline.2016.png)
-
+<img src="https://github.com/Gabaldonlab/phylomizer/blob/master/docs/pipeline.2016.png" width="300">
