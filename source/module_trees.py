@@ -29,10 +29,16 @@ from socket import getfqdn
 from random import randint
 from operator import itemgetter
 from string import strip, lower
-from module_alignments import check_count_sequences, replaceRareAminoAcids, \
-  convertInputFile_Format, getFileFormat
-from module_utils import lookForDirectory, lookForFile, splitSequence, \
-  format_time, listDirectory
+
+from module_utils import format_time, listDirectory
+from module_utils import lookForDirectory, lookForFile, splitSequence
+
+from module_alignments import convertInputFile_Format, getFileFormat
+from module_alignments import check_count_sequences, replaceRareAminoAcids
+
+## To guarantee consistency across the pipeline, the minimum sequenes number to
+## perform any analysis is defined just in one module
+from module_alignments import  min_seqs_analysis
 
 ''' Module which implements the functionality for reconstructing phylogenetic
     trees. It contains wrappers to three different programs: PhyML, RAxML &
@@ -64,11 +70,19 @@ def phylogenetic_trees(parameters):
   ## generated therefore in this folder
   os.chdir(parameters["out_directory"])
 
-  ## Set output filename and log file
-  if parameters["replace"] and parameters["step"] == 0:
-    logFile = open(oFile + ".log", "w")
-  else:
-    logFile = open(oFile + ".log", "a+")
+  ## Depending on the verbosity level - set the appropriate logfile value
+  if not "verbose" in parameters or parameters["verbose"] == 0:
+    logFile = open(os.devnull, 'wb')
+
+  ## ALL/logfile
+  elif parameters["verbose"] == 1:
+    ## Set output filename and log file
+    mode = "w" if parameters["replace"] and parameters["step"] == 0 else "a+"
+    logFile = open(oFile + ".log", mode)
+
+  ## ALL/Stderr
+  elif parameters["verbose"] == 2:
+    logFile = sys.stderr
 
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
@@ -116,6 +130,25 @@ def phylogenetic_trees(parameters):
   if not "readal" in parameters:
     sys.exit("ERROR: Check your CONFIG file. 'readAl' is not available")
 
+  ## Create a temporary FASTA file which will be used to detect the sequence
+  ## number on the input alignment and the presence of rare amino-acids
+  TEMPFILE = tempfile.NamedTemporaryFile()
+  convertInputFile_Format("readal", parameters["readal"], parameters["in_file"],
+    TEMPFILE.name, "fasta", logFile, parameters["replace"])
+  TEMPFILE.flush()
+
+  numSeqs, selenocys, pyrrolys = check_count_sequences(TEMPFILE.name)
+
+  ## Set the minimum number of sequences required to reconstruct an alignment
+  min_seqs = int(parameters["min_seqs"] if "min_seqs" in parameters else \
+    min_seqs_analysis)
+  
+  ## Finish when there are not enough sequences to make an alignment
+  if numSeqs < min_seqs:
+    print >> logFile, ("### INFO: It is necessary, at least, %d sequences to "
+      + "to reconstruct an alignment (%d)") % (min_seqs, numSeqs)
+    sys.exit(80)
+
   ## Check which approaches should be used for the phylogenetic reconstruction
   ## and whether there are specific program's parameters for them
   if not "tree_approach" in parameters:
@@ -137,20 +170,9 @@ def phylogenetic_trees(parameters):
   if others != set():
     tree_approaches += sorted(others)
 
-  ## Check input alignment when using RAxML since it may crash when
-  ## Selenocysteines or Pyrrolysines are present in the input alignment
+  ## When using RAxML, it may crash when Selenocysteines or Pyrrolysines are
+  ## present in the input alignment
   if prog in ["raxml"]:
-
-    ## Create a temporary FASTA file which will be used as input for HMMBuild
-    TEMPFILE = tempfile.NamedTemporaryFile()
-    convertInputFile_Format("readal", parameters["readal"], parameters["in_file"],
-      TEMPFILE.name, "fasta", logFile, parameters["replace"])
-    TEMPFILE.flush()
-
-    ## Analyze input alignment looking for the presence of Selenocysteines /
-    ## Pyrrolysines
-    numSeqs, selenocys, pyrrolys = check_count_sequences(TEMPFILE.name)
-
     ## If Selenocysteines or Pyrrolysines are present, substitute them by "X"
     if selenocys or pyrrolys:
       out_file = ("%s.no_rare_aa") % (parameters["in_file"])
@@ -291,12 +313,26 @@ def phylogenetic_trees(parameters):
         if m.endswith(add_model)]
 
   final = datetime.datetime.now()
+  date = final.strftime("%H:%M:%S %m/%d/%y")
   print >> logFile, ("###\n###\tSTEP\tPhylogenetic Tree Reconstruction\tEND\t"
     + "%s") % (date)
-  total = format_time((final - start).seconds if start else 0)
+    
+  ## We return a DELTA object comparing both timestamps
+  total = format_time(final - start if start else 0)
   print >> logFile, ("###\tTOTAL Time\tPhylogenetic Tree Reconstruction\t%s"
     + "\n###") % (total)
-  logFile.close()
+  ## We just close logfile and clean it up when it is a file
+  if "verbose" in parameters and parameters["verbose"] == 1:
+    logFile.close()
+
+    ## Clean-up log directory from undesirable lines
+    try:
+      sp.call(("sed -i '/^$/d' %s.log") % (oFile), shell = True)
+      sp.call(("sed -i '/^M/d' %s.log") % (oFile), shell = True)
+      sp.call(("sed -i '/\r/d' %s.log") % (oFile), shell = True)
+    except OSError:
+      print >> sys.stderr, ("ERROR: Impossible to clean-up '%s.log' log file") \
+        % (oFile)
 
   ## Before returning to the main program, get back to the original working
   ## directory
@@ -344,6 +380,7 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
   logFile.flush()
 
   try:
+    ## We add a small pipeline to avoid informatin written in the same line
     proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile,
       stdin = sp.PIPE)
   except OSError, e:
@@ -356,7 +393,8 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
     sys.exit(exit_codes[label])
 
   final = datetime.datetime.now()
-  total = format_time((final - start).seconds if start else 0)
+  ## We return a DELTA object comparing both timestamps
+  total = format_time(final - start if start else 0)
   print >> logFile, ("###\tTime\t%s\n###") % (total)
   logFile.flush()
 

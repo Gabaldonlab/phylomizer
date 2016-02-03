@@ -29,6 +29,10 @@ consensus           mode           m_coffee
 trimming            mode           trimal
 both_direction      parameter      True
 
+## We define the minimum sequences number to reconstruct a multiple sequence
+## alignment and a phylogenetic tree
+min_seqs            parameter      3
+
 ## General parameter for aligner programs. Sometimes rare aminoacids such as
 ## selenocysteine 'U' or pyrrolysine 'O' cause programs to fail, therefore,
 ## those rare amino-acids are substitute prior and after making the alignments

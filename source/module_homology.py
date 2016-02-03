@@ -30,8 +30,8 @@ from hashlib import md5
 from socket import getfqdn
 from string import strip, capitalize, ljust
 from module_alignments import convertInputFile_Format
-from module_utils import lookForDirectory, lookForFile, splitSequence, \
-  parseComments, format_time, sort_blast_hits, sort_hmmer_hits
+from module_utils import parseComments, lookForDirectory, sort_blast_hits
+from module_utils import lookForFile, splitSequence, format_time, sort_hmmer_hits
 
 ## Exit code meanings
 ##  80: Not enough sequences
@@ -45,13 +45,21 @@ def homology(parameters):
   ## Change current directory to the output folder. Any temporary file will be
   ## generated therefore in this folder
   os.chdir(parameters["out_directory"])
+  
+  ## Depending on the verbosity level - set the appropriate logfile value
+  if not "verbose" in parameters or parameters["verbose"] == 0:
+    logFile = open(os.devnull, 'wb')
 
-  ## Set output filename and log file
-  if parameters["replace"] and parameters["step"] == 0:
-    logFile = open(oFile + ".log", "w")
-  else:
-    logFile = open(oFile + ".log", "a+")
+  ## ALL/logfile
+  elif parameters["verbose"] == 1:
+    ## Set output filename and log file
+    mode = "w" if parameters["replace"] and parameters["step"] == 0 else "a+"
+    logFile = open(oFile + ".log", mode)
 
+  ## ALL/Stderr
+  elif parameters["verbose"] == 2:
+    logFile = sys.stderr
+    
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
   print >> logFile, ("###\n###\tSTEP\tHomology\tSTART\t%s\n###") % (date)
@@ -154,7 +162,6 @@ def homology(parameters):
   ## If a CDS input file is set, use it to associate to homologous protein
   ## sequences their corresponding CDS
   if parameters["residue_datatype"] in ["prot2codon", "prot2nuc"]:
-
     cdsFile = ("%s.seqs_cds") % (oFile)
 
     ## Check whether the file already exists or not.
@@ -179,11 +186,24 @@ def homology(parameters):
   ## Print how much time was needed to perform the whole homology search step
   final = datetime.datetime.now()
   date  = final.strftime("%H:%M:%S %m/%d/%y")
-
   print >> logFile, ("###\n###\tSTEP\tHomology\tEND\t%s") % (date)
-  total = format_time((final - start).seconds if start else 0)
+
+  ## We return a DELTA object comparing both timestamps
+  total = format_time(final - start if start else 0)
   print >> logFile, ("###\tTOTAL Time\tHomology\t%s\n###") % (total)
-  logFile.close()
+
+  ## We just close logfile and clean it up when it is a file
+  if "verbose" in parameters and parameters["verbose"] == 1:
+    logFile.close()
+
+    ## Clean-up log directory from undesirable lines
+    try:
+      sp.call(("sed -i '/^$/d' %s.log") % (oFile), shell = True)
+      sp.call(("sed -i '/^M/d' %s.log") % (oFile), shell = True)
+      sp.call(("sed -i '/\r/d' %s.log") % (oFile), shell = True)
+    except OSError:
+      print >> sys.stderr, ("ERROR: Impossible to clean-up '%s.log' log file") \
+        % (oFile)
 
   ## Update the input file parameter and return the dictionary containing all
   ## parameters. Those parameters may be used in other steps
