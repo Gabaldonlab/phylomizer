@@ -438,6 +438,7 @@ def filter_results(parameters, logFile):
 
   ## We make sure query sequence is included
   sequences = read_database(parameters["db_file"], target_sequences)
+  seed_seqs = read_database(parameters["in_file"])  
 
   ## Depending on how the search was performed, we will filter-out data
   ## by e-values and coverage (BLAST only) or not
@@ -458,7 +459,11 @@ def filter_results(parameters, logFile):
       if float(line[4]) > e_value or float(line[7]) > e_value:
         continue
     elif tag == "blast":
-      covTarget = ((int(line[7]) - int(line[6]))+1)/float(sequences[line[0]][0])
+      ## To make sure we have the seed sequence used to perform the homology
+      ## search, we read it independently of the input sequence database
+      seed = line[0]
+      seedSeq = (seed_seqs[seed] if seed in seed_seqs else sequences[seed])[0]
+      covTarget = ((int(line[7]) - int(line[6]))+1)/float(seedSeq)
       if covTarget < coverage or float(line[-2]) > e_value:
         continue
 
@@ -492,14 +497,14 @@ def filter_results(parameters, logFile):
 
   return selected_sequences
 
-def read_database(input_db_file, sequences):
+def read_database(input_db_file, sequences = None):
   '''
   Read input TARGET Sequences database returning those sequences which may be
   potentially selected during the filtering step
   '''
   output = {}
   for record in SeqIO.parse(input_db_file, "fasta"):
-    if not record.id in sequences:
+    if sequences and not record.id in sequences:
       continue
     seq = str(record.seq) if record.seq[-1] != "*" else str(record.seq[:-1])
     output.setdefault(record.id, (len(seq), splitSequence(seq)))
