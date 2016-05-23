@@ -1,9 +1,8 @@
 #!/usr/bin/python
-
 """
   phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
-  steps followed by a phylogenetist to build a gene family tree with error-control
-  of every step
+  steps followed by a phylogenetist to build a gene family tree with error-
+  control of every step
 
   Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
 
@@ -20,6 +19,8 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+## To guarantee compatibility with python3.4
+from __future__ import print_function
 
 desc = """
   --
@@ -46,7 +47,6 @@ desc = """
   Steps could be performed all together, individually or some combinations of
   them e.g. homology + alignments, alignments + trees.
 """
-
 import os
 import sys
 import argparse
@@ -55,15 +55,11 @@ import datetime
 from module_homology import homology
 from module_trees import phylogenetic_trees
 from module_alignments import alignment, min_seqs_analysis
-from module_utils import readConfig, printConfig, default_verbose, format_time
 from module_utils import lookForFile, lookForDirectory, verbose_levels
+from module_utils import readConfig, printConfig, default_verbose, format_time
 
-## Get dinamically version
-#~ from _version import get_versions
-#~ __version = get_versions()['version']
-#~ del get_versions
-
-__version = "1.0.0"
+from version import __version__, __revision__, __build__
+__version = ("v%s rev:%s [BUILD:%s]") % (__version__, __revision__, __build__)
 
 if __name__ == "__main__":
 
@@ -106,8 +102,8 @@ if __name__ == "__main__":
   parser.add_argument("-r", "--replace", dest = "replace", default = False, \
     action = "store_true", help = "Over-write any previously generated file")
 
-  parser.add_argument("--version", action = "version", version ='%(prog)s \"' \
-    + __version + "\"")
+  parser.add_argument("--version", action = "version", version ='%(prog)s ' \
+    + __version)
 
   parser.add_argument("-v", "--verbose", dest = "verbose", type = str, default \
     = None, choices = sorted(verbose_levels.keys()), help = "Set how informati"
@@ -195,7 +191,8 @@ if __name__ == "__main__":
 
   ## Check parameters specific to the alignment and tree reconstruction steps
   if set(["alignments", "trees"]) & set(args.steps) != set():
-    ## Set minimum sequences number for any alignment/tree has to be reconstructed
+    ## Set minimum sequences number for which any alignment/tree has to be
+    ## reconstructed
     if not "min_seqs" in parameters and not args.minSeqs:
       parameters.setdefault("min_seqs", min_seqs_analysis)
 
@@ -274,12 +271,14 @@ if __name__ == "__main__":
 
   ## Dump into stderr - when requested all verbose info or just stderr
   if parameters["verbose"] > 0:
-    print >> sys.stderr, ("\n###\tTOTAL Time\t[ '%s' ]\t%s\n###") % (steps, total)
+    print(("\n###\tTOTAL Time\t[ '%s' ]\t%s\n###") % (steps, total), file = \
+      sys.stderr)
 
   ## Dump into logfile - when requested all verbose info or just logfile
   if parameters["verbose"] == 1:
     ## Get output folder/generic filename - Set output filename and log file
     oFile = os.path.join(parameters["out_directory"], parameters["prefix"])
     logFile = open(oFile + ".log", "a+")
-    print >> logFile, ("\n###\tTOTAL Time\t[ '%s' ]\t%s\n###") % (steps, total)
+    print(("\n###\tTOTAL Time\t[ '%s' ]\t%s\n###") % (steps, total), file = \
+      logFile)
     logFile.close()

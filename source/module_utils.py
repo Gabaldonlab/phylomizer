@@ -1,7 +1,7 @@
 """
   phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
-  steps followed by a phylogenetist to build a gene family tree with error-control
-  of every step
+  steps followed by a phylogenetist to build a gene family tree with error-
+  control of every step
 
   Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
 
@@ -18,16 +18,17 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+## To guarantee compatibility with python3.4
+from __future__ import print_function
 
 import os
 import sys
-import datetime
 import subprocess as sp
 
 from time import sleep
-from string import strip
-from getpass import getpass
-from operator import itemgetter
+
+## Define a substitution for strip.
+strip = lambda x: x.strip()
 
 available_tags = ["binary", "file", "directory", "mode", "parameter", "other"]
 
@@ -116,7 +117,7 @@ def lookForProgram(binary):
   '''
   try:
     pipe = sp.Popen(("which %s") % (binary), shell = True, stdout = sp.PIPE)
-  except OSError, e:
+  except OSError as e:
     sys.exit(("ERROR: Impossible to find '%s'\nReport: %s") % (binary, str(e)))
 
   program_path = "".join(map(strip, pipe.stdout.readlines()))
@@ -157,7 +158,7 @@ def lookForDirectory(input_direct, create = True):
 
   try:
     sp.call(("mkdir -p %s") % (input_direct), shell = True)
-  except OSError, e:
+  except OSError as e:
     sys.exit(("ERROR: Impossible to create '%s'\nReport: %s") % (input_direct, \
       str(e)))
   return True
@@ -226,7 +227,7 @@ def sort_hmmer_hits(x, y):
     elif float(x[7]) > float(y[7]):
       return -1
   except:
-    print ("x: %s\ty: %s") % (x, y)
+    print(("x: %s\ty: %s") % (x, y))
   return 0
 
 def printConfig(input_parameters, dest = sys.stderr):
@@ -236,11 +237,11 @@ def printConfig(input_parameters, dest = sys.stderr):
 
   ## Show which parameters has been set-up
   output = [("| %-24s\t| %s") % (("'%s'") % (key), value) for key, value in \
-    sorted(input_parameters.iteritems())]
+    sorted(input_parameters.items())]
   maxLen = sorted([len(l) for l in output])[-1] + 18
 
-  print >> dest, ("#%s#") % ("#" * maxLen)
-  print >> dest, ("#%s#") % ("Pipeline Configuration".center(maxLen))
-  print >> dest, ("#%s#") % ("#" * maxLen)
-  print >> dest, ("%s") % ("\n".join(output))
-  print >> dest, ("#%s#") % ("#" * maxLen)
+  print(("#%s#") % ("#" * maxLen), file = dest)
+  print(("#%s#") % ("Pipeline Configuration".center(maxLen)), file = dest)
+  print(("#%s#") % ("#" * maxLen), file = dest)
+  print(("%s") % ("\n".join(output)), file = dest)
+  print(("#%s#") % ("#" * maxLen), file = dest)

@@ -1,7 +1,7 @@
 """
   phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
-  steps followed by a phylogenetist to build a gene family tree with error-control
-  of every step
+  steps followed by a phylogenetist to build a gene family tree with error-
+  control of every step
 
   Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
 
@@ -18,6 +18,8 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+## To guarantee compatibility with python3.4
+from __future__ import print_function
 
 import os
 import sys
@@ -28,9 +30,8 @@ import subprocess as sp
 from Bio import SeqIO
 from hashlib import md5
 from socket import getfqdn
-from string import strip, capitalize, ljust
 from module_alignments import convertInputFile_Format
-from module_utils import parseComments, lookForDirectory, sort_blast_hits
+from module_utils import parseComments, lookForDirectory, sort_blast_hits, strip
 from module_utils import lookForFile, splitSequence, format_time, sort_hmmer_hits
 
 ## Exit code meanings
@@ -62,7 +63,7 @@ def homology(parameters):
     
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> logFile, ("###\n###\tSTEP\tHomology\tSTART\t%s\n###") % (date)
+  print(("###\n###\tSTEP\tHomology\tSTART\t%s\n###") % (date), file = logFile)
   logFile.flush()
 
   ## Get which tool will be used to perform the homology search. Check such tool
@@ -126,8 +127,8 @@ def homology(parameters):
       continue
     homologs += 1
   if not homologs:
-    print >> sys.stderr, ("INFO: NO Homologous sequences found for '%s'") % \
-      parameters["prefix"]
+    print(("INFO: NO Homologous sequences found for '%s'") % \
+      parameters["prefix"], file = sys.stderr)
     sys.exit(80)
 
   ## Filter homology search data. A dictionary containing selected sequences,
@@ -144,7 +145,8 @@ def homology(parameters):
     parameters["replace"] = True
 
     seqs_md5 = md5("".join(sorted(selected_sequences.keys()))).hexdigest()
-    print >> open(outFile, "w"), ("%s\t%s") % (parameters["prefix"], seqs_md5)
+    print(("%s\t%s") % (parameters["prefix"], seqs_md5), file = \
+      open(outFile, "w"))
 
   ## Generate a file containing the selected sequences after performing the
   ## homology search and filtering its output according to a set of parameters.
@@ -156,7 +158,8 @@ def homology(parameters):
 
     output_file = open(outFile, "w")
     for seqId in sorted(selected_sequences):
-      print >> output_file, (">%s\n%s") % (seqId, selected_sequences[seqId][1])
+      print((">%s\n%s") % (seqId, selected_sequences[seqId][1]), file = \
+      output_file)
     output_file.close()
 
   ## If a CDS input file is set, use it to associate to homologous protein
@@ -174,7 +177,7 @@ def homology(parameters):
         if not record.id in selected_sequences:
           continue
         seq = splitSequence(str(record.seq))
-        print >> output_file, (">%s\n%s") % (record.id, seq)
+        print((">%s\n%s") % (record.id, seq), file = output_file)
         found.add(record.id)
       output_file.close()
 
@@ -186,11 +189,11 @@ def homology(parameters):
   ## Print how much time was needed to perform the whole homology search step
   final = datetime.datetime.now()
   date  = final.strftime("%H:%M:%S %m/%d/%y")
-  print >> logFile, ("###\n###\tSTEP\tHomology\tEND\t%s") % (date)
+  print(("###\n###\tSTEP\tHomology\tEND\t%s") % (date), file = logFile)
 
   ## We return a DELTA object comparing both timestamps
   total = format_time(final - start if start else 0)
-  print >> logFile, ("###\tTOTAL Time\tHomology\t%s\n###") % (total)
+  print(("###\tTOTAL Time\tHomology\t%s\n###") % (total), file = logFile)
 
   ## We just close logfile and clean it up when it is a file
   if "verbose" in parameters and parameters["verbose"] == 1:
@@ -202,8 +205,8 @@ def homology(parameters):
       sp.call(("sed -i '/^M/d' %s.log") % (oFile), shell = True)
       sp.call(("sed -i '/\r/d' %s.log") % (oFile), shell = True)
     except OSError:
-      print >> sys.stderr, ("ERROR: Impossible to clean-up '%s.log' log file") \
-        % (oFile)
+      print(("ERROR: Impossible to clean-up '%s.log' log file") \
+        % (oFile), file = sys.stderr)
 
   ## Update the input file parameter and return the dictionary containing all
   ## parameters. Those parameters may be used in other steps
@@ -256,12 +259,13 @@ def blast(parameters, logFile):
       parameters["in_file"], outFile)
 
   name = getfqdn()
-  print >> logFile, ("###\n###\t[%s]\tCommand-line\t%s\n###\n") % (name, cmd)
+  print(("###\n###\t[%s]\tCommand-line\t%s\n###\n") % (name, cmd), file = \
+    logFile)
   logFile.flush()
 
   try:
     proc = sp.Popen(cmd, shell = True, stderr = logFile)
-  except OSError, e:
+  except OSError as e:
     sys.exit("ERROR: Execution failed: " + str(e))
 
   if proc.wait() != 0:
@@ -316,12 +320,13 @@ def hmmer(parameters, logFile):
       TEMPFILE.name)
 
     name = getfqdn()
-    print >> logFile, ("###\n###\t[%s]\tCommand-line\t%s\n###\n") % (name, cmd)
+    print(("###\n###\t[%s]\tCommand-line\t%s\n###\n") % (name, cmd), file = \
+      logFile)
     logFile.flush()
 
     try:
       proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
-    except OSError, e:
+    except OSError as e:
       sys.exit("ERROR: Execution failed: " + str(e))
 
     if proc.wait() != 0:
@@ -340,12 +345,13 @@ def hmmer(parameters, logFile):
     parameters["db_file"])
 
   name = getfqdn()
-  print >> logFile, ("###\n###\t[%s]\tCommand-line\t%s\n###\n") % (name, cmd)
+  print(("###\n###\t[%s]\tCommand-line\t%s\n###\n") % (name, cmd), file = \
+    logFile)
   logFile.flush()
 
   try:
     proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
-  except OSError, e:
+  except OSError as e:
     sys.exit("ERROR: Execution failed: " + str(e))
 
   if proc.wait() != 0:
@@ -388,7 +394,7 @@ def filter_results(parameters, logFile):
     target_sequences = set()
     for line in open(outFile, "rU"):
       ## Parse line
-      f = map(strip, line.split())
+      f = list(map(strip, line.split()))
       parsed = [elem for elem in parseComments([e for e in f if e]) if elem]
       ## Include only target sequences - we assume query sequence had been
       ## include as part of the filtered results
@@ -480,8 +486,8 @@ def filter_results(parameters, logFile):
     sequence_id = line[0] if tag == "hmmer" else line[1]
     selected_sequences.setdefault(sequence_id, sequences[sequence_id])
 
-  out = ["\t".join(map(lambda x: str(x).ljust(6), l)) for l in accepted_lines]
-  print >> open(outFile, "w"), "\n".join(out)
+  out = ["\t".join([str(x).ljust(6) for x in l]) for l in accepted_lines]
+  print("\n".join(out), file=open(outFile, "w"))
 
   return selected_sequences
 

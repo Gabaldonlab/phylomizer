@@ -1,7 +1,7 @@
 """
   phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
-  steps followed by a phylogenetist to build a gene family tree with error-control
-  of every step
+  steps followed by a phylogenetist to build a gene family tree with error-
+  control of every step
 
   Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
 
@@ -18,6 +18,8 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+## To guarantee compatibility with python3.4
+from __future__ import print_function
 
 import os
 import sys
@@ -27,11 +29,9 @@ import subprocess as sp
 
 from socket import getfqdn
 from random import randint
-from operator import itemgetter
-from string import strip, lower
 
 from module_utils import format_time, listDirectory
-from module_utils import lookForDirectory, lookForFile, splitSequence
+from module_utils import lookForDirectory, lookForFile, splitSequence, strip
 
 from module_alignments import convertInputFile_Format, getFileFormat
 from module_alignments import check_count_sequences, replaceRareAminoAcids
@@ -44,7 +44,6 @@ from module_alignments import  min_seqs_analysis
     trees. It contains wrappers to three different programs: PhyML, RAxML &
     FastTree
 '''
-
 ## Exit code meanings
 ##  80: Not enough sequences
 exit_codes = {
@@ -86,8 +85,8 @@ def phylogenetic_trees(parameters):
 
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> logFile, ("###\n###\tSTEP\tPhylogenetic Tree Reconstruction\tSTART\t"
-    + "%s\n###") % (date)
+  print(("###\n###\tSTEP\tPhylogenetic Tree Reconstruction\tSTART\t"
+    + "%s\n###") % (date), file=logFile)
   logFile.flush()
 
   ## Get which program will be used to reconstruct phylogenetic trees. Check
@@ -111,7 +110,7 @@ def phylogenetic_trees(parameters):
       + "the <evol_models> parameter")
 
   ## If the evolutionary model list is not appropiately formated, do it
-  if isinstance(parameters["evol_models"], basestring):
+  if isinstance(parameters["evol_models"], str):
     parameters["evol_models"] = map(strip, parameters["evol_models"].split())
 
   ## Check if <numb_models parameters is defined and how many models are
@@ -145,8 +144,8 @@ def phylogenetic_trees(parameters):
   
   ## Finish when there are not enough sequences to make an alignment
   if numSeqs < min_seqs:
-    print >> logFile, ("### INFO: It is necessary, at least, %d sequences to "
-      + "to reconstruct an alignment (%d)") % (min_seqs, numSeqs)
+    print(("### INFO: It is necessary, at least, %d sequences to "
+      + "to reconstruct an alignment (%d)") % (min_seqs, numSeqs), file=logFile)
     sys.exit(80)
 
   ## Check which approaches should be used for the phylogenetic reconstruction
@@ -156,7 +155,8 @@ def phylogenetic_trees(parameters):
 
   ## Remove potential duplicates and lowercase all approaches for the tree
   ## reconstruction
-  parameters["tree_approach"] = set(map(lower, parameters["tree_approach"]))
+  parameters["tree_approach"] = set([p.lower() for p in \
+    parameters["tree_approach"]])
 
   ## We will first loot for Neighbour Joining tree reconstruction, then for
   ## Maximum likelihood and then for any other approach defined in the config
@@ -261,14 +261,15 @@ def phylogenetic_trees(parameters):
       log_lk = get_likelihood(prog, stats_file)
 
       if not log_lk:
-        print >> sys.stderr, ("ERROR: Impossible to the Log likelihood values "
-          + "for '%s' model using this program '%s'") % (model, prog)
+        print(("ERROR: Impossible to the Log likelihood values "
+          + "for '%s' model using this program '%s'") % (model, prog), file = \
+          sys.stderr)
         sys.exit(exit_codes[prog])
 
       results.setdefault(model, log_lk)
 
     ## Get the models sorted by their likelihood values
-    records = sorted(results.iteritems(), key = itemgetter(1), reverse = True)
+    records = sorted(iter(results.items()), key = itemgetter(1), reverse = True)
 
     ## Set the filename which stores the ranking
     rank_file = ("%s.tree.%s.rank.%s") % (oFile, prog, approach)
@@ -296,7 +297,8 @@ def phylogenetic_trees(parameters):
     if not lookForFile(rank_file) or replace or update:
 
       out_file = open(rank_file, "w")
-      print >> out_file, "\n".join([("%s\t%s") % (r[0], r[1]) for r in records])
+      print("\n".join([("%s\t%s") % (r[0], r[1]) for r in records]), file = \
+        out_file)
       out_file.close()
 
       ## We could set the replace flag to True. However, if any tree has been
@@ -314,13 +316,13 @@ def phylogenetic_trees(parameters):
 
   final = datetime.datetime.now()
   date = final.strftime("%H:%M:%S %m/%d/%y")
-  print >> logFile, ("###\n###\tSTEP\tPhylogenetic Tree Reconstruction\tEND\t"
-    + "%s") % (date)
+  print(("###\n###\tSTEP\tPhylogenetic Tree Reconstruction\tEND\t"
+    + "%s") % (date), file=logFile)
     
   ## We return a DELTA object comparing both timestamps
   total = format_time(final - start if start else 0)
-  print >> logFile, ("###\tTOTAL Time\tPhylogenetic Tree Reconstruction\t%s"
-    + "\n###") % (total)
+  print(("###\tTOTAL Time\tPhylogenetic Tree Reconstruction\t%s"
+    + "\n###") % (total), file=logFile)
   ## We just close logfile and clean it up when it is a file
   if "verbose" in parameters and parameters["verbose"] == 1:
     logFile.close()
@@ -331,8 +333,8 @@ def phylogenetic_trees(parameters):
       sp.call(("sed -i '/^M/d' %s.log") % (oFile), shell = True)
       sp.call(("sed -i '/\r/d' %s.log") % (oFile), shell = True)
     except OSError:
-      print >> sys.stderr, ("ERROR: Impossible to clean-up '%s.log' log file") \
-        % (oFile)
+      print(("ERROR: Impossible to clean-up '%s.log' log file") \
+        % (oFile), file=sys.stderr)
 
   ## Before returning to the main program, get back to the original working
   ## directory
@@ -375,27 +377,29 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
 
-  print >> logFile, ("###\n###\t%s - Phylogenetic Trees\t") % (label.upper()),
-  print >> logFile, ("%s\n###\t[%s]\tCommand-line\t%s\n###") % (date, name, cmd)
+  print(("###\n###\t%s - Phylogenetic Trees\t") % (label.upper()), end = ' ', \
+    file = logFile)
+  print(("%s\n###\t[%s]\tCommand-line\t%s\n###") % (date, name, cmd), file = \
+    logFile)
   logFile.flush()
 
   try:
     ## We add a small pipeline to avoid informatin written in the same line
     proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile,
       stdin = sp.PIPE)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
+  except OSError as e:
+    print("ERROR: Execution failed: " + str(e), file=sys.stderr)
     sys.exit(exit_codes[label])
   proc.stdin.write("\n\nY\n")
 
   if proc.wait() != 0:
-    print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
+    print(("ERROR: Execution failed: %s") % (label.upper()), file = sys.stderr)
     sys.exit(exit_codes[label])
 
   final = datetime.datetime.now()
   ## We return a DELTA object comparing both timestamps
   total = format_time(final - start if start else 0)
-  print >> logFile, ("###\tTime\t%s\n###") % (total)
+  print(("###\tTime\t%s\n###") % (total), file=logFile)
   logFile.flush()
 
   ## Process program's output and rename output files according to our own
@@ -414,8 +418,8 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
       sp.call(("mv %s %s") % (tree_file, out_file), shell = True)
       sp.call(("mv %s %s") % (sts_file, stats_file), shell = True)
     except OSError:
-      print >> sys.stderr, ("ERROR: Impossible to rename '%s' output files") \
-        % (label.upper())
+      print(("ERROR: Impossible to rename '%s' output files") \
+        % (label.upper()), file=sys.stderr)
       sys.exit(exit_codes[label])
 
   elif label in ["raxml"]:
@@ -423,15 +427,16 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
       sp.call(("mv RAxML_bestTree.%s %s") % (suffix, out_file), shell = True)
       sp.call(("mv RAxML_info.%s %s") % (suffix, stats_file), shell = True)
     except OSError:
-      print >> sys.stderr, ("ERROR: Impossible to rename RAxML output files")
+      print(("ERROR: Impossible to rename RAxML output files"), file = \
+        sys.stderr)
       sys.exit(exit_codes[label])
 
     oFile = open(stats_file, "a+")
     for oth_file in listDirectory(os.path.split(stats_file)[0], suffix):
       fileName = os.path.split(oth_file)[1]
       hz_line = "#" * (len(fileName) + 4)
-      print >> oFile, ("%s\n%s\n%s") % (hz_line, fileName, hz_line)
-      print >> oFile, ("%s") % ("".join(open(oth_file, "rU").readlines()))
+      print(("%s\n%s\n%s") % (hz_line, fileName, hz_line), file = oFile)
+      print(("%s") % ("".join(open(oth_file, "rU").readlines())), file = oFile)
       sp.call(("rm -f %s") % (oth_file), shell = True)
     oFile.close()
 
@@ -457,7 +462,7 @@ def get_likelihood(label, stats_file):
     for line in open(stats_file, "rU"):
       if line.lower().find("loglk") == -1:
         continue
-      f = map(strip, line.split("\t"))
+      f = list(map(strip, line.split("\t")))
       try:
         value = float(f[2])
       except:

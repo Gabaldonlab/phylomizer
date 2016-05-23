@@ -1,7 +1,7 @@
 """
   phylomizer - automated phylogenetic reconstruction pipeline - it resembles the
-  steps followed by a phylogenetist to build a gene family tree with error-control
-  of every step
+  steps followed by a phylogenetist to build a gene family tree with error-
+  control of every step
 
   Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
 
@@ -18,6 +18,8 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+## To guarantee compatibility with python3.4
+from __future__ import print_function
 
 import os
 import re
@@ -25,15 +27,11 @@ import sys
 import datetime
 import subprocess as sp
 
-import numpy as np
-
 from Bio import SeqIO
-from hashlib import md5
-from string import strip
 from socket import getfqdn
 from getpass import getuser
-from module_utils import lookForFile, splitSequence
-from module_utils import format_time, lookForDirectory
+from module_utils import format_time
+from module_utils import lookForFile, lookForDirectory, splitSequence, strip
 
 ## Define the minimum sequences number to reconstruct any alignment/tree
 min_seqs_analysis = "3"
@@ -52,7 +50,7 @@ file_extension = {
 ## Exit code meanings
 ##  80: Not enough sequences
 exit_codes = {
-  "trimal":         82,    ##  82: Problems trimming input alignment using trimAl
+  "trimal":         82,    ##  82: Problems trimming input alignment with trimAl
   "readal":         81,    ##  81: Problems handling input sequence/msa files
 
   "prank":          92,    ##  92: Problems aligning with PRANK
@@ -94,8 +92,8 @@ def alignment(parameters):
 
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
-  print >> logFile, ("###\n###\tSTEP\tMultiple Sequence Alignment\tSTART\t%s"
-    + "\n###") % (date)
+  print(("###\n###\tSTEP\tMultiple Sequence Alignment\tSTART\t%s"
+    + "\n###") % (date), file = logFile)
   logFile.flush()
 
   ## Get which program/s will be used to align the input sequences. Check such
@@ -116,7 +114,7 @@ def alignment(parameters):
 
   ## Evaluate whether input sequences will be aligned following one direction,
   ## forward - left to right - or both directions meaning forward/reverse
-  if isinstance(parameters["both_direction"], basestring):
+  if isinstance(parameters["both_direction"], str):
     parameters["both_direction"] = parameters["both_direction"].lower() =="true"
 
   ## Check whether if an special mode has been selected - for instance
@@ -148,8 +146,9 @@ def alignment(parameters):
   
   ## Finish when there are not enough sequences to make an alignment
   if numSeqs < min_seqs:
-    print >> logFile, ("### INFO: It is necessary, at least, %d sequences to "
-      + "to reconstruct an alignment (%d)") % (min_seqs, numSeqs)
+    print(("### INFO: It is necessary, at least, %d sequences to "
+      + "to reconstruct an alignment (%d)") % (min_seqs, numSeqs), file = \
+      logFile)
     sys.exit(80)
 
   ## Otherwise, process the input sequence, substitute rare amino-acids and
@@ -338,7 +337,7 @@ def alignment(parameters):
         params = ("%s %s") % (params, parameters[prog_params])
 
       path_file = ("%s.alg.paths") % (oFile)
-      print >> open(path_file, "w"), "\n".join(generated_alignments)
+      print("\n".join(generated_alignments), file=open(path_file, "w"))
 
       trimmingAlignment(prog, binary, params, clean_file, logFile,
         parameters["replace"], compare_msa = path_file, force_refer_msa = \
@@ -373,13 +372,13 @@ def alignment(parameters):
 
   final = datetime.datetime.now()
   date = final.strftime("%H:%M:%S %m/%d/%y")
-  print >> logFile, ("###\n###\tSTEP\tMultipple Sequence Alignment\tEND\t"
-    + "%s") % (date)
+  print(("###\n###\tSTEP\tMultipple Sequence Alignment\tEND\t"
+    + "%s") % (date), file = logFile)
 
   ## We return a DELTA object comparing both timestamps
   total = format_time(final - start if start else 0)
-  print >> logFile, ("###\tTOTAL Time\tMultiple Sequence Alignment\t%s"
-    + "\n###") % (total)
+  print(("###\tTOTAL Time\tMultiple Sequence Alignment\t%s"
+    + "\n###") % (total), file = logFile)
 
   ## We just close logfile and clean it up when it is a file
   if "verbose" in parameters and parameters["verbose"] == 1:
@@ -391,8 +390,8 @@ def alignment(parameters):
       sp.call(("sed -i '/^M/d' %s.log") % (oFile), shell = True)
       sp.call(("sed -i '/\r/d' %s.log") % (oFile), shell = True)
     except OSError:
-      print >> sys.stderr, ("ERROR: Impossible to clean-up '%s.log' log file") \
-        % (oFile)
+      print(("ERROR: Impossible to clean-up '%s.log' log file") \
+        % (oFile), file = sys.stderr)
 
   ## Update the input file parameter and return the dictionary containing all
   ## parameters. Those parameters may be used in other steps
@@ -438,17 +437,17 @@ def reverseSequences(binary, in_file, out_file, replace, logFile):
   cmd = ("%s -in %s -out %s -reverse") % (binary, in_file, out_file)
 
   name = getfqdn()
-  print >> logFile, ("###\n###\treadAl - reverse seqs")
-  print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
+  print(("###\n###\treadAl - reverse seqs"), file = logFile)
+  print(("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd), file = logFile)
 
   try:
     proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
+  except OSError as e:
+    print("ERROR: Execution failed: " + str(e), file = sys.stderr)
     sys.exit(exit_codes["readal"])
 
   if proc.wait() != 0:
-    print >> sys.stderr, ("ERROR: Execution failed: readAl")
+    print(("ERROR: Execution failed: readAl"), file = sys.stderr)
     sys.exit(exit_codes["readal"])
 
   return True
@@ -482,15 +481,16 @@ def replaceRareAminoAcids(in_file, out_file, replace, logFile, combinations, \
     for letter in subs:
       seq = seq.replace(letter, subs[letter])
       stats[letter] += seq.count(subs[letter])
-    print >> oFile, (">%s\n%s") % (record.id, splitSequence(seq))
+    print((">%s\n%s") % (record.id, splitSequence(seq)), file = oFile)
   oFile.close()
 
   output = "|\t".join([("'%s' > '%s'\tfreq: %d") % (aa, subs[aa], stats[aa]) \
     for aa in stats if stats[aa] > 0])
 
   name = getfqdn()
-  print >> logFile, ("###\n###\t[%s]\tSubstituting Rare Amino-Acids") % (name)
-  print >> logFile, ("###\tReport\t%s") % (output)
+  print(("###\n###\t[%s]\tSubstituting Rare Amino-Acids") % (name), file = \
+    logFile)
+  print(("###\tReport\t%s") % (output), file = logFile)
   logFile.flush()
 
   return True
@@ -551,25 +551,26 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
 
-  print >> logFile, ("###\n###\t%s - Alignment\t%s") % (label.upper(), date)
-  print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
+  print(("###\n###\t%s - Alignment\t%s") % (label.upper(), date), file = \
+    logFile)
+  print(("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd), file = logFile)
   logFile.flush()
 
   try:
     proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
+  except OSError as e:
+    print("ERROR: Execution failed: " + str(e), file = sys.stderr)
     sys.exit(exit_codes[label])
 
   if proc.wait() != 0:
-    print >> sys.stderr, ("ERROR: Execution failed: %s [exit code != -1]") \
-      % (label.upper())
+    print(("ERROR: Execution failed: %s [exit code != -1]") \
+      % (label.upper()), file = sys.stderr)
     sys.exit(exit_codes[label])
 
   final = datetime.datetime.now()
   ## We return a DELTA object comparing both timestamps
   total = format_time(final - start if start else 0)
-  print >> logFile, ("###\tTime\t%s\n###") % (total)
+  print(("###\tTime\t%s\n###") % (total), file = logFile)
   logFile.flush()
 
   ## If we are working with PRANK, move output file - which should have a suffix
@@ -590,9 +591,10 @@ def perfomAlignment(label, binary, parameters, in_file, out_file, logFile, \
   ## In case something goes wrong, remove the output file and finish the
   ## current execution
   if not checkAlignment(in_file, out_file):
-    print in_file, out_file
-    print >> sys.stderr, ("ERROR: Execution failed: %s [file check]") % \
-      (label.upper())
+    print(("ERROR: Check input '%s' and output '%s' alignments") % (in_file, \
+      out_file), file = sys.stderr)
+    print(("ERROR: Execution failed: %s [file check]") % \
+      (label.upper()), file = sys.stderr)
     # sp.call(("rm -f %s") % (out_file), shell = True)
     sys.exit(exit_codes[label])
 
@@ -630,24 +632,24 @@ def trimmingAlignment(label, binary, parameters, out_file, logFile, replace, \
   start = datetime.datetime.now()
   date = start.strftime("%H:%M:%S %m/%d/%y")
 
-  print >> logFile, ("###\n###\tTrimming Input MSA\t%s") % (date)
-  print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
+  print(("###\n###\tTrimming Input MSA\t%s") % (date), file = logFile)
+  print(("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd), file = logFile)
   logFile.flush()
 
   try:
     proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
+  except OSError as e:
+    print("ERROR: Execution failed: " + str(e), file = sys.stderr)
     sys.exit(exit_codes[label])
 
   if proc.wait() != 0:
-    print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
+    print(("ERROR: Execution failed: %s") % (label.upper()), file = sys.stderr)
     sys.exit(exit_codes[label])
 
   final = datetime.datetime.now()
   ## We return a DELTA object comparing both timestamps
   total = format_time(final - start if start else 0)
-  print >> logFile, ("###\tTime\t%s\n###") % (total)
+  print(("###\tTime\t%s\n###") % (total), file = logFile)
   logFile.flush()
 
   return True
@@ -669,8 +671,8 @@ def checkAlignment(ifile_1, ifile_2, iformat_1 = "fasta", iformat_2 = "fasta"):
   inSeqs_1 = {}
   for record in SeqIO.parse(ifile_1, iformat_1):
     if record.id in inSeqs_1:
-      print >> sys.stderr, ("ERROR: Repeated sequence '%s' ['%s']") \
-        % (record.id, ifile_1)
+      print(("ERROR: Repeated sequence '%s' ['%s']") \
+        % (record.id, ifile_1), file = sys.stderr)
       return False
     seq = re.sub(r'[^a-zA-Z]', '', str(record.seq))
     inSeqs_1.setdefault(record.id, seq.upper().strip())
@@ -678,23 +680,25 @@ def checkAlignment(ifile_1, ifile_2, iformat_1 = "fasta", iformat_2 = "fasta"):
   inSeqs_2 = {}
   for record in SeqIO.parse(ifile_2, iformat_2):
     if record.id in inSeqs_2:
-      print >> sys.stderr, ("ERROR: Repeated sequence '%s' ['%s']") \
-        % (record.id, ifile_2)
+      print(("ERROR: Repeated sequence '%s' ['%s']") \
+        % (record.id, ifile_2), file = sys.stderr)
       return False
     seq = re.sub(r'[^a-zA-Z]', '', str(record.seq))
     inSeqs_2.setdefault(record.id, seq.upper().strip())
 
   ## If there are inconsistencies among sequences, inform about them
   if set(inSeqs_1.keys()) ^ set(inSeqs_2.keys()) != set():
-    print >> sys.stderr,("ERROR: Non-overlapping sequences identifier detected "
-      + "between input ['%s'] and output ['%s'] files ") % (ifile_1, ifile_2)
+    print(("ERROR: Non-overlapping sequences identifier detected "
+      + "between input ['%s'] and output ['%s'] files ") % (ifile_1, ifile_2), \
+      file = sys.stderr)
     return False
 
   ## Check that sequences in both files contain the same residues
   for seq in inSeqs_1:
     if inSeqs_1[seq] != inSeqs_2[seq]:
-      print >> sys.stderr, ("ERROR: Different sequence composition for '%s' bet"
-        + "ween input ['%s'] and output ['%s'] files") % (seq, ifile_1, ifile_2)
+      print(("ERROR: Different sequence composition for '%s' bet"
+        + "ween input ['%s'] and output ['%s'] files") % (seq, ifile_1, \
+        ifile_2), file = sys.stderr)
       return False
 
   ## If everything is OK, inform about it
@@ -709,14 +713,14 @@ def getFileFormat(label, binary, in_file, logFile):
   cmd = ("%s -in %s -format") % (binary, in_file)
 
   name = getfqdn()
-  print >> logFile, ("###\n###\t%s - get format") % (label.upper())
-  print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
+  print(("###\n###\t%s - get format") % (label.upper()), file = logFile)
+  print(("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd), file = logFile)
   logFile.flush()
 
   try:
     proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = sp.PIPE)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
+  except OSError as e:
+    print("ERROR: Execution failed: " + str(e), file = sys.stderr)
     sys.exit(exit_codes[label])
 
   in_file_format, aligned = None, None
@@ -743,18 +747,18 @@ def convertInputFile_Format(label, binary, in_file, out_file, out_format, \
   cmd = ("%s -in %s -out %s -%s") % (binary, in_file, out_file, out_format)
 
   name = getfqdn()
-  print >> logFile, ("###\n###\t%s - get format") % (label.upper())
-  print >> logFile, ("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd)
+  print(("###\n###\t%s - get format") % (label.upper()), file = logFile)
+  print(("###\t[%s]\tCommand-line\t%s\n###") % (name, cmd), file = logFile)
   logFile.flush()
 
   try:
     proc = sp.Popen(cmd, shell = True, stderr = logFile, stdout = logFile)
-  except OSError, e:
-    print >> sys.stderr, "ERROR: Execution failed: " + str(e)
+  except OSError as e:
+    print("ERROR: Execution failed: " + str(e), file = sys.stderr)
     sys.exit(exit_codes[label])
 
   if proc.wait() != 0:
-    print >> sys.stderr, ("ERROR: Execution failed: %s") % (label.upper())
+    print(("ERROR: Execution failed: %s") % (label.upper()), file = sys.stderr)
     sys.exit(exit_codes[label])
 
   return True
