@@ -132,7 +132,8 @@ if __name__ == "__main__":
   parameters.setdefault("in_file", os.path.abspath(args.inFile))
 
   if not lookForFile(args.dbFile):
-    sys.exit(("ERROR: Check input TARGET SEQUENCES file '%s'") % (args.dbFile))
+    sys.exit(("ERROR: Check input TARGET SEQUENCES file '%s' [Mode: HOMOLOGY "
+    + "SEARCH]") % (args.dbFile))
   parameters.setdefault("db_file", os.path.abspath(args.dbFile))
 
   if args.cdsFile:
