@@ -45,6 +45,11 @@ coverage            parameter      0.5
 ## during the search
 hits                parameter      150
 
+## By default, the sequence used to perform the homology search is included
+## among the results even if it is not found among the homology results.
+## Now is it possible to avoid this behaviour by setting the appropriate flag.
+force_seed_sequence parameter      True
+
 ## Protein Homology search
 
 homology            mode           legacy_blast

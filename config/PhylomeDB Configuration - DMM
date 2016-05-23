@@ -13,6 +13,8 @@ e_value             parameter      1e-5
 coverage            parameter      0.5
 hits                parameter      150
 
+force_seed_sequence parameter      True
+
 ## Protein Homology search
 homology            mode           legacy_blast
 

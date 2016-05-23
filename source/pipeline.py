@@ -95,6 +95,11 @@ if __name__ == "__main__":
   parser.add_argument("-r", "--replace", dest = "replace", default = False, \
     action = "store_true", help = "Over-write any previously generated file")
 
+  parser.add_argument("--no_force_seed", dest = "forcedSeed", default = True, \
+    action = "store_false", help = "Avoid forcing the inclusion of the sequence"
+    + " used for the homology search\nThis parameter overwrites whatever is set"
+    + "on the config file")
+
   parser.add_argument("--version", action = "version", version ='%(prog)s ' \
     + __version)
     
@@ -176,6 +181,15 @@ if __name__ == "__main__":
 
   if not parameters["min_seqs"].isdigit() or int(parameters["min_seqs"]) < 1:
     sys.exit(("ERROR: Check your 'minimum sequnces number' value"))
+
+
+  ## Include information about whether the sequence used to perform the
+  ## homology search should be included - even if it is not present among the
+  ## homology results - or not.
+  if "force_seed_sequence" in parameters and not args.forcedSeed:
+    parameters["force_seed_sequence"] = False
+  if not "force_seed_sequence" in parameters:
+    parameters["force_seed_sequence"] = args.forcedSeed
 
   ## Check whether alignment will be reconstructed in one or two directions, i.e
   ## head and tails.

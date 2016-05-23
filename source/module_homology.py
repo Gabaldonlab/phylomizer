@@ -469,11 +469,12 @@ def filter_results(parameters, logFile):
   ## Sort by e-values (and bit-score for BLAST only) accepted lines
   accepted_lines.sort(sort_blast_hits if tag == "blast" else sort_hmmer_hits)
 
-  ## Recover query ID from query line - make sure query hit is included
+  ## Recover query ID from query line. Including the starting sequence depends
+  ## on the configuration  
   query = None
   if query_line:
     query = query_line[0][2] if tag == "hmmer" else query_line[0][0]
-    if not query in accepted_targets:
+    if not query in accepted_targets and parameters["force_seed_sequence"]:
       accepted_lines = query_line + accepted_lines
 
   if hits != -1 and len(accepted_lines) > hits:
@@ -487,7 +488,7 @@ def filter_results(parameters, logFile):
     selected_sequences.setdefault(sequence_id, sequences[sequence_id])
 
   out = ["\t".join([str(x).ljust(6) for x in l]) for l in accepted_lines]
-  print("\n".join(out), file=open(outFile, "w"))
+  print("\n".join(out), file = open(outFile, "w"))
 
   return selected_sequences
 

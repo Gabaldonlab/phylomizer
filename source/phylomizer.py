@@ -102,6 +102,11 @@ if __name__ == "__main__":
   parser.add_argument("-r", "--replace", dest = "replace", default = False, \
     action = "store_true", help = "Over-write any previously generated file")
 
+  parser.add_argument("--no_force_seed", dest = "forcedSeed", default = True, \
+    action = "store_false", help = "Avoid forcing the inclusion of the sequence"
+    + " used for the homology search\nThis parameter overwrites whatever is set"
+    + "on the config file")
+
   parser.add_argument("--version", action = "version", version ='%(prog)s ' \
     + __version)
 
@@ -188,6 +193,14 @@ if __name__ == "__main__":
       int(parameters["hits"]) < 1)  or (not parameters["hits"].isdigit() \
       and parameters["hits"] != "no_limit"):
       sys.exit(("ERROR: Check your 'homology accepted hits' upper limit value"))
+
+    ## Include information about whether the sequence used to perform the
+    ## homology search should be included - even if it is not present among the
+    ## homology results - or not.
+    if "force_seed_sequence" in parameters and not args.forcedSeed:
+      parameters["force_seed_sequence"] = False
+    if not "force_seed_sequence" in parameters:
+      parameters["force_seed_sequence"] = args.forcedSeed
 
   ## Check parameters specific to the alignment and tree reconstruction steps
   if set(["alignments", "trees"]) & set(args.steps) != set():
