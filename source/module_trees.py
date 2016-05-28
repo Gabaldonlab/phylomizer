@@ -29,6 +29,7 @@ import subprocess as sp
 
 from socket import getfqdn
 from random import randint
+from operator import itemgetter
 
 from module_utils import format_time, listDirectory
 from module_utils import lookForDirectory, lookForFile, splitSequence, strip
