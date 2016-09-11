@@ -147,10 +147,10 @@ readal              binary
 tree                mode           phyml
 
 ## Evolutionary models for PhyML
-evol_models         parameter	     JTT WAG MtREV VT LG Blosum62 Dayhoff
+evol_models         parameter	     JTT WAG MtREV VT LG Blosum62 Dayhoff DCMut
 
 ## Additional evolutionary models for PhyML
-## evol_models         parameter	     DCMut RtREV CpREV MtMam MtArt
+## evol_models         parameter	     RtREV CpREV MtMam MtArt
 
 ## Evolutionary model for CodonPhyML - Codons
 ## evol_models         parameter	     GY
@@ -169,7 +169,7 @@ evol_models         parameter	     JTT WAG MtREV VT LG Blosum62 Dayhoff
 ## useful when the model selection is executed using Neighbour-Joining trees -
 ## Otherwise it is advice to set a reduce number of <evol_models> and evaluate
 ## all of them to choose the best fitting to the data ones.
-numb_models        parameter	     2
+numb_models        parameter	     1
 
 ## If there is no indication about which approaches to used, only Maximum
 ## Likelihood trees will be reconstructed
@@ -187,7 +187,7 @@ ml                  parameter	     -b -2 -o tlr
 ## for phyml for the <nj> and <ml> steps
 
 ## Parameters for PhyML
-phyml               other          mpirun -n 4 phyml-mpi
+phyml               binary
 phyml_params        parameter      -d aa -f e -v e -a e -c 4 --no_memory_check
 
 ## Parameters for CodonPhyML
