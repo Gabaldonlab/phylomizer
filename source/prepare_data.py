@@ -232,11 +232,11 @@ if __name__ == "__main__":
   ref = os.path.join(args.outDir, "jobs/jobs.pipeline")
   print (("INFO: Already processed %d/%d\n---") % (n, total), file = sys.stderr)
 
-  print (("INFO: Jobs have been dumped into '%s'\n") % (ref), file = sys.stderr)
+  print (("INFO: Jobs have been dumped into '%s'") % (ref), file = sys.stderr)
 
-  print (("INFO: Before running the pipeline make sure you have formated your "
-    + "sequences database by using appropriate tools e.g. formatdb"), file = \
-    sys.stderr)
+  print (("---\nINFO: Before running the pipeline, make sure you have formatted"
+    + " your sequences database by using appropriate tools e.g. formatdb\n"), \
+    file = sys.stderr)
 
   ## Just copy databases and configuration files to the ROOT project folder
   if args.copy:
