@@ -53,10 +53,27 @@ optional arguments:
 **pipeline.py** aims to perform the three main steps implemented in the pipeline following the configuration set on the configuration file.
 
 ```bash
-## Given a single input sequence, retrieve its homologous sequences from a predefined DB using e.g. BLAST, reconstruct the
-## alignment for this set of sequences, and then the best fitting ML tree.
+## Given a single input sequence, retrieve its homologous sequences from a predefined DB
+## using e.g. BLAST, reconstruct the alignment for this set of sequences, and then the 
+## best fitting ML tree.
 
 $> ./source/pipeline.py -i input_single_sequence_file -d input_DB_file -c config_file -o output_folder
+```
+
+## Generating an appropiate data structure for your large-scale analysis.
+One of the main aim of this pipeline is to facilitate the generation of thousands of single gene trees.
+Therefore it is possible to take a given sequences file and generate an appropriate data structure to store all this data.
+Moreover, the auxiliary script [prepare_data.py](source/prepare_data.py) will assist you in the process.
+
+A couple of things should be taken into account. First, the **species tag** is intended to follow the PhylomeDB species code e.g. HUMAN which are automatically derived from sequence IDs e.g. Phy00086SJ_**HUMAN** > HUMAN. Alternatively, species code can be extracted from the first 3 letter of any sequence ID e.g. **Sce**000078 > Sce. If not species tag is given, the script will process all sequences in the input file.
+
+Second, a ROOT project folder will be generated. It will contains three main folders: 1) **Data**, where all single gene trees will be stored. To avoid file storage problems, gene trees are divided into subfolders of a given size e.g. 1000. Subfolders size can be changed using this parameter --size; 2) **BlastDB** where all databases are stored. Remember that input databases should be formatted prior to run the pipeline using e.g. formatdb; 3) **jobs** will contain a file with a call to the pipeline for each of the gene trees to be reconstructed. This file could be easily used in the context of High Performance Computing facilities and their queue system. This folder will also contain the configuration file in order to allow specific configurations for each project.
+
+```bash
+## prepare_data.py could be as easy as below
+
+$> ./source/prepare_data.py --folder ROOT_FOLDER --seed_sp HUMAN --script 'PATH TO source/pipeline.py'
+-c 'PATH TO config/config.pipeline --db 'PATH to input sequences file'
 ```
 
 ## Configuration File.
