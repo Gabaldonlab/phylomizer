@@ -187,6 +187,13 @@ ml                  parameter	     -b -2 -o tlr
 ## for phyml for the <nj> and <ml> steps
 
 ## Parameters for PhyML
+##
+## In case you want to use the PhyML's MPI version, you can do it by indicating
+## as below. Importantly, the use of the TAG 'other' allows to skip checking
+## for the existance of binaries.
+## 
+## phyml               other          mpirun -n 4 phyml-mpi
+
 phyml               binary
 phyml_params        parameter      -d aa -f e -v e -a e -c 4 --no_memory_check
 
