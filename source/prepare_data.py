@@ -208,7 +208,8 @@ if __name__ == "__main__":
     ## Create a subdirectory every N's sequences.
     if (n % args.dirSize) == 0:
       cDir = ("%s-%s") % (str(n + 1).zfill(5), str(n + args.dirSize).zfill(5))
-      print (("INFO: Already processed %d/%d") % (n, total), file = sys.stderr)
+      if n > 0:
+        print (("INFO: Already processed %d/%d") % (n,total), file = sys.stderr)
 
     ## Get specific sequence folder
     current = os.path.join(os.path.join(data_folder, cDir), record)
@@ -235,7 +236,7 @@ if __name__ == "__main__":
   print (("INFO: Jobs have been dumped into '%s'") % (ref), file = sys.stderr)
   
   ## Just copy databases and configuration files to the ROOT project folder
-  if copy:
+  if args.copy:
     shutil.copy2(args.dbFile, db)
     shutil.copy2(args.configFile, config)
     if cds:
