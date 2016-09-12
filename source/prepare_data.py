@@ -185,9 +185,7 @@ if __name__ == "__main__":
   if len(proteome) == 0:
     sys.exit(("\nERROR: Check Species TAG '%s'. No sequences detected") % \
       (seed_species))
-
   total = len(proteome)
-  print (("INFO: '%d' sequences detected") % (total), file = sys.stderr)
 
   ## Generate a master command-line which will be later added the input FASTA
   ## file and the output directory
@@ -232,9 +230,14 @@ if __name__ == "__main__":
 
   jobsFile.close()   
   ref = os.path.join(args.outDir, "jobs/jobs.pipeline")
-  print (("INFO: Already processed %d/%d") % (n, total), file = sys.stderr)
-  print (("INFO: Jobs have been dumped into '%s'") % (ref), file = sys.stderr)
-  
+  print (("INFO: Already processed %d/%d\n---") % (n, total), file = sys.stderr)
+
+  print (("INFO: Jobs have been dumped into '%s'\n") % (ref), file = sys.stderr)
+
+  print (("INFO: Before running the pipeline make sure you have formated your "
+    + "sequences database by using appropriate tools e.g. formatdb"), file = \
+    sys.stderr)
+
   ## Just copy databases and configuration files to the ROOT project folder
   if args.copy:
     shutil.copy2(args.dbFile, db)
