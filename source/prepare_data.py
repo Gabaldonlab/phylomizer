@@ -194,7 +194,7 @@ if __name__ == "__main__":
   master_cmd += (" --min_seqs %s") % (args.minSeqs) if args.minSeqs else ""
   master_cmd += (" --max_hits %s") % (args.maxHits) if args.maxHits else ""
   master_cmd += (" --prefix %s") % (args.prefix) if args.prefix else ""
-  master_cmd += (" --no_force_seed") if args.forcedSeed else ""
+  master_cmd += (" --no_force_seed") if not args.forcedSeed else ""
   master_cmd += (" --replace") if args.replace else ""
 
   n = 0
