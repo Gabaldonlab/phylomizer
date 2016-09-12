@@ -4,7 +4,7 @@
   steps followed by a phylogenetist to build a gene family tree with error-
   control of every step
 
-  Copyright (C) 2014 - Salvador Capella-Gutierrez, Toni Gabaldon
+  Copyright (C) 2014-2016 - Salvador Capella-Gutierrez, Toni Gabaldon
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -24,8 +24,8 @@ from __future__ import print_function
 
 desc = """
   --
-  phylomizer - Copyright (C) 2014  Salvador Capella-Gutierrez, Toni Gabaldon
-  [scapella, tgabaldon]_at_crg.es
+  phylomizer - Copyright (C) 2014-2016 Salvador Capella-Gutierrez
+  [salcagu_at_gmail.com], Toni Gabaldon [tgabaldon_at_crg.es]
 
   This program comes with ABSOLUTELY NO WARRANTY;
   This is free software, and you are welcome to redistribute it
@@ -63,8 +63,8 @@ __version = ("v%s rev:%s [BUILD:%s]") % (__version__, __revision__, __build__)
 
 if __name__ == "__main__":
 
-  usage = ("\n\npython %(prog)s -i seed_sequence/s -c config_file -d output_"
-    + "directory -b sequences_db [other_options]\n")
+  usage = ("\n\npython %(prog)s -i seed_sequence/s -c config_file -o output_"
+    + "directory -d sequences_db [other_options]\n")
 
   parser = argparse.ArgumentParser(description = desc, usage = usage,
     formatter_class = argparse.RawTextHelpFormatter)

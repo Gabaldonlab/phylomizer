@@ -60,8 +60,8 @@ __version = ("v%s rev:%s [BUILD:%s]") % (__version__, __revision__, __build__)
 
 if __name__ == "__main__":
 
-  usage = ("\n\npython %(prog)s -i seed_sequence/s -c config_file -d output_"
-    + "directory -b sequences_db [other_options]\n")
+  usage = ("\n\npython %(prog)s -i seed_sequence/s -c config_file -o output_"
+    + "directory -d sequences_db [other_options]\n")
 
   parser = argparse.ArgumentParser(description = desc, usage = usage,
     formatter_class = argparse.RawTextHelpFormatter)

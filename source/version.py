@@ -19,6 +19,6 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-__build__ = "2016-09-11"
-__revision__ = "15"
+__build__ = "2016-09-12"
+__revision__ = "16"
 __version__ = "1.0.1"
