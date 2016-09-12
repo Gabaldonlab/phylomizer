@@ -119,13 +119,19 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   ## Check whether the ROOT directory already exist or not ...
-  if lookForDirectory(args.outDir):
+  if lookForDirectory(args.outDir, False):
     sys.exit(("ERROR: Output ROOT folder already exist '%s'") % (args.outDir))
     
   args.outDir = os.path.abspath(args.outDir)
   ## ... and try to create it in case it doesn't exist 
   if not lookForDirectory(args.outDir, create = True):
     sys.exit(("ERROR: ROOT folder '%s' cannot be created") % (args.outDir))
+
+  ## Create folders to store the jobs file and (potentially) the configuration
+  ## file and input databases
+  lookForDirectory(os.path.join(args.outDir, "jobs"))
+  lookForDirectory(os.path.join(args.outDir, "Data"))
+  lookForDirectory(os.path.join(args.outDir, "BlastDB"))
 
   ## Check parameters related to files / directories
   if not lookForFile(os.path.abspath(args.script)):
@@ -196,20 +202,17 @@ if __name__ == "__main__":
   master_cmd += (" --replace") if args.replace else ""
 
   n = 0
+  data = os.path.join(args.outDir, "Data")
   jFile = open(args.jobsFile, "w") if args.jobsFile else sys.stdout
   ## Dump sequences in the output directory
   for record in sorted(proteome):
     ## Create a subdirectory every N's sequences.
     if (n % args.dirSize) == 0:
       cDir = ("%s-%s") % (str(n + 1).zfill(5), str(n + args.dirSize).zfill(5))
-      if not os.path.isdir(os.path.join(args.outDir, cDir)):
-        os.makedirs(os.path.join(args.outDir, cDir))
       print (("INFO: Already processed %d/%d") % (n, total), file = sys.stderr)
 
     ## Get specific sequence folder
-    oDirec = os.path.join(os.path.join(args.outDir, cDir), record)
-    if not os.path.isdir(oDirec):
-      os.makedirs(oDirec)
+    lookForDirectory(os.path.join(os.path.join(data, cDir), record))
 
     ## Create FASTA file containing the sequence
     inFile = os.path.join(oDirec, ("%s.fasta") % (record))
