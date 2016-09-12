@@ -36,6 +36,7 @@ desc = """
 
 import os
 import sys
+import shutil
 import argparse
 
 from Bio import SeqIO
@@ -54,9 +55,6 @@ if __name__ == "__main__":
 
   parser.add_argument("--folder", dest = "outDir", type = str, default = ".",
     help = "Set the ROOT directory for the whole data structure")
-
-  parser.add_argument("--jobs", dest = "jobsFile", type = str, default = "",
-    help = "Set the output file where jobs will be dumped")
 
   parser.add_argument("--size", dest = "dirSize", type = int, default = 1000,
     help = "Set the number of seed proteins per subfolder in the DATA folder")
@@ -202,8 +200,9 @@ if __name__ == "__main__":
   master_cmd += (" --replace") if args.replace else ""
 
   n = 0
-  data = os.path.join(args.outDir, "Data")
-  jFile = open(args.jobsFile, "w") if args.jobsFile else sys.stdout
+  data_folder = os.path.join(args.outDir, "Data")
+  jFile = open(os.path.join(args.outDir, "jobs/jobs.pipeline"), "w")
+
   ## Dump sequences in the output directory
   for record in sorted(proteome):
     ## Create a subdirectory every N's sequences.
@@ -212,10 +211,11 @@ if __name__ == "__main__":
       print (("INFO: Already processed %d/%d") % (n, total), file = sys.stderr)
 
     ## Get specific sequence folder
-    lookForDirectory(os.path.join(os.path.join(data, cDir), record))
+    current = os.path.join(os.path.join(data_folder, cDir), record)
+    lookForDirectory(current)
 
     ## Create FASTA file containing the sequence
-    inFile = os.path.join(oDirec, ("%s.fasta") % (record))
+    inFile = os.path.join(current, ("%s.fasta") % (record))
     oFile = open(inFile, "w")
     print ((">%s\n%s") % (record, proteome[record]), file = oFile)
     oFile.close()
@@ -227,5 +227,15 @@ if __name__ == "__main__":
     ## Increase counter to ensure there are only 'args.dirSize' sequences
     ## for each folder
     n += 1
+
+  jFile.close()   
+  ref = os.path.join(args.outDir, "jobs/jobs.pipeline")
   print (("INFO: Already processed %d/%d") % (n, total), file = sys.stderr)
-  jFile.close()
+  print (("INFO: Jobs have been dumped into '%s'") % (ref), file = sys.stderr)
+  
+  ## Just copy databases and configuration files to the ROOT project folder
+  if copy:
+    shutil.copy2(args.dbFile, db)
+    shutil.copy2(args.configFile, config)
+    if cds:
+      shutil.copy2(args.cdsFile, cds)
