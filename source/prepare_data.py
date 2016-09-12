@@ -185,7 +185,7 @@ if __name__ == "__main__":
   if len(proteome) == 0:
     sys.exit(("\nERROR: Check Species TAG '%s'. No sequences detected") % \
       (seed_species))
-  total = len(proteome)
+  total = "{:,}".format(len(proteome))
 
   ## Generate a master command-line which will be later added the input FASTA
   ## file and the output directory
@@ -207,7 +207,8 @@ if __name__ == "__main__":
     if (n % args.dirSize) == 0:
       cDir = ("%s-%s") % (str(n + 1).zfill(5), str(n + args.dirSize).zfill(5))
       if n > 0:
-        print (("INFO: Already processed %d/%d") % (n,total), file = sys.stderr)
+        print (("INFO: Already processed %s/%s") % ("{:,}".format(n), total), \
+          file = sys.stderr)
 
     ## Get specific sequence folder
     current = os.path.join(os.path.join(data_folder, cDir), record)
@@ -230,12 +231,13 @@ if __name__ == "__main__":
 
   jobsFile.close()   
   ref = os.path.join(args.outDir, "jobs/jobs.pipeline")
-  print (("INFO: Already processed %d/%d\n---") % (n, total), file = sys.stderr)
+  print (("INFO: Already processed %s/%s\n---") % ("{:,}".format(n), total), \
+    file = sys.stderr)
 
   print (("INFO: Jobs have been dumped into '%s'") % (ref), file = sys.stderr)
 
   print (("---\nINFO: Before running the pipeline, make sure you have formatted"
-    + " your sequences database by using appropriate tools e.g. formatdb\n"), \
+    + " your sequences database by using appropriate tools e.g. formatdb"), \
     file = sys.stderr)
 
   ## Just copy databases and configuration files to the ROOT project folder
