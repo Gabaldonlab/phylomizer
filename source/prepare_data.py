@@ -201,7 +201,7 @@ if __name__ == "__main__":
 
   n = 0
   data_folder = os.path.join(args.outDir, "Data")
-  jFile = open(os.path.join(args.outDir, "jobs/jobs.pipeline"), "w")
+  jobsFile = open(os.path.join(args.outDir, "jobs/jobs.pipeline"), "w")
 
   ## Dump sequences in the output directory
   for record in sorted(proteome):
@@ -222,13 +222,14 @@ if __name__ == "__main__":
 
     del proteome[record]
 
-    print (("%s --in %s --out %s") % (master_cmd, inFile, oDirec), file = jFile)
+    print (("%s --in %s --out %s") % (master_cmd, inFile, current), file = \
+      jobsFile)
 
     ## Increase counter to ensure there are only 'args.dirSize' sequences
     ## for each folder
     n += 1
 
-  jFile.close()   
+  jobsFile.close()   
   ref = os.path.join(args.outDir, "jobs/jobs.pipeline")
   print (("INFO: Already processed %d/%d") % (n, total), file = sys.stderr)
   print (("INFO: Jobs have been dumped into '%s'") % (ref), file = sys.stderr)
