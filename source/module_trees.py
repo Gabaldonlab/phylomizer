@@ -112,7 +112,7 @@ def phylogenetic_trees(parameters):
 
   ## If the evolutionary model list is not appropiately formated, do it
   if isinstance(parameters["evol_models"], str):
-    parameters["evol_models"] = map(strip, parameters["evol_models"].split())
+    parameters["evol_models"] = list(map(strip, parameters["evol_models"].split()))
 
   ## Check if <numb_models parameters is defined and how many models are
   ## requested to be evaluated
@@ -280,7 +280,7 @@ def phylogenetic_trees(parameters):
     ## Marked the file as updatable if there is any discrepancy
     if not replace and lookForFile(rank_file):
 
-      old_content = "\n".join(["\t".join(map(strip, line.split("\t"))) for line
+      old_content = "\n".join(["\t".join(list(map(strip, line.split("\t")))) for line
         in open(rank_file, "rU")])      
 
       newly_generated = "\n".join([("%s\t%s") % (r[0], r[1]) for r in records])
@@ -391,7 +391,8 @@ def perform_tree(label, binary, parameters, in_file, out_file, stats_file, \
   except OSError as e:
     print("ERROR: Execution failed: " + str(e), file=sys.stderr)
     sys.exit(exit_codes[label])
-  proc.stdin.write("\n\nY\n")
+
+  proc.communicate(b'\n\nY\n')
 
   if proc.wait() != 0:
     print(("ERROR: Execution failed: %s") % (label.upper()), file = sys.stderr)
@@ -455,7 +456,7 @@ def get_likelihood(label, stats_file):
     for line in open(stats_file, "rU"):
       if not line.startswith(". Log-likelihood"):
         continue
-      logLK = float(map(strip, line.split())[2])
+      logLK = float(list(map(strip, line.split()))[2])
       break
 
   ## FastTree
@@ -474,7 +475,7 @@ def get_likelihood(label, stats_file):
   for line in open(stats_file, "rU"):
     if not line.lower().startswith("final") or line.lower().find("score") == -1:
       continue
-    logLK = float(map(strip, line.split())[-1])
+    logLK = float(list(map(strip, line.split()))[-1])
     break
 
   ## Return the likelihood value for the current tree

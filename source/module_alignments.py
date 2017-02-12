@@ -724,11 +724,11 @@ def getFileFormat(label, binary, in_file, logFile):
     sys.exit(exit_codes[label])
 
   in_file_format, aligned = None, None
-  for line in map(strip, proc.communicate()[0].split("\n")):
+  for line in map(strip, proc.communicate()[0].decode('ascii')):
     if line.startswith("## Input file format") and not in_file_format:
-      in_file_format = map(strip, line.split("\t"))[1].lower()
+      in_file_format = list(map(strip, line.split("\t")))[1].lower()
     if line.startswith("## Input file aligned") and not aligned:
-      aligned = map(strip, line.split("\t"))[1].lower() == "yes"
+      aligned = list(map(strip, line.split("\t")))[1].lower() == "yes"
 
   return in_file_format, aligned
 

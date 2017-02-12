@@ -120,7 +120,9 @@ def lookForProgram(binary):
   except OSError as e:
     sys.exit(("ERROR: Impossible to find '%s'\nReport: %s") % (binary, str(e)))
 
-  program_path = "".join(map(strip, pipe.stdout.readlines()))
+  ## Parse the 'binary sequence of bytes' produce by communicate and convert it
+  ## to a string
+  program_path = "".join(list(map(strip, pipe.communicate()[0].decode('ascii'))))
 
   if program_path == "" or not lookForFile(program_path):
     return None
